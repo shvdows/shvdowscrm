@@ -1,5 +1,5 @@
 {
-  "name": "sawaqlycrm",
+  "name": "shvdowscrm",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -10,15 +10,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/omar-waleed15/sawaqlycrm.git"
+    "url": "git+https://github.com/shvdows/shvdowscrm.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/omar-waleed15/sawaqlycrm/issues"
+    "url": "https://github.com/shvdows/shvdowscrm/issues"
   },
-  "homepage": "https://github.com/omar-waleed15/sawaqlycrm#readme",
+  "homepage": "https://github.com/shvdows/shvdowscrm#readme",
   "description": "",
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",
