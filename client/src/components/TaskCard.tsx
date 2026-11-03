@@ -1,0 +1,854 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Task, TaskAssignee, User, Client } from '@/types';
+import { PriorityBadge } from './Badges';
+import { useAuth } from '@/lib/auth';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { useLanguage } from '@/lib/i18n';
+import { tasksApi, usersApi, closedClientsApi } from '@/lib/api';
+import { formatCairoDate, formatCairoDateTime, isDateOverdue, getCairoDatetimeLocalString, getCairoTodayString, getCairoDateString, parseCairoDateTimeToISO, formatServerTimestamp } from '@/lib/dateUtils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { MoreVertical, Pencil, Trash2, Loader2, Save, X, ArrowRight, MessageSquare, Paperclip, Copy, Check } from 'lucide-react';
+
+interface TaskCardProps {
+  task: Task;
+  onTaskUpdated?: (task: Task) => void;
+  onTaskDeleted?: (taskId: string) => void;
+}
+
+function formatDate(dateStr?: string, locale: string = 'en'): string {
+  return formatCairoDate(dateStr, locale);
+}
+
+function isOverdue(dateStr?: string, assignees?: TaskAssignee[]): boolean {
+  if (!dateStr) return false;
+  if (assignees && assignees.length > 0) {
+    const allDoneOrSubmitted = assignees.every(a => a.status === 'completed' || a.status === 'submitted');
+    if (allDoneOrSubmitted) return false;
+  }
+  return isDateOverdue(dateStr);
+}
+
+function getInitials(name: string): string {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+}
+
+function formatDuration(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const pad = (num: number) => String(num).padStart(2, '0');
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+export function formatDatetimeLocal(isoStr?: string): string {
+  return getCairoDatetimeLocalString(isoStr);
+}
+
+export default function TaskCard({ task, onTaskUpdated, onTaskDeleted }: TaskCardProps) {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { t, locale } = useLanguage();
+  const assignees = task.task_assignees || [];
+  const overdue = isOverdue(task.due_date, assignees);
+  const myAssignment = task.task_assignees?.find(a => a.user_id === user?.id);
+  const hasRevisionRequested = assignees.some(a => a.status === 'revision');
+  const isMyRevisionNeeded = myAssignment?.status === 'revision';
+
+  // canAdminister checks: owner, team_leader, moderation, account_manager
+  const isOwner = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager';
+
+  // Determine logged time text (only for members, hidden on cards for managers/team leaders)
+  let loggedTimeText = '';
+  if (!isOwner && myAssignment) {
+    const mySeconds = myAssignment.total_time_spent || 0;
+    if (mySeconds > 0 || myAssignment.timer_started_at) {
+      loggedTimeText = formatDuration(mySeconds);
+      if (myAssignment.timer_started_at) {
+        loggedTimeText += ` (${locale === 'ar' ? 'نشط' : 'active'})`;
+      }
+    }
+  }
+
+  // moderation roles cannot archive/restore tasks
+  const canArchive = isOwner && user?.role !== 'moderation';
+
+  const submittedCount = assignees.filter(a => a.status === 'submitted').length;
+  const totalAssignees = assignees.length;
+
+  // Edit Modal State
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [members, setMembers] = useState<User[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loadingLists, setLoadingLists] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const [copiedDescription, setCopiedDescription] = useState(false);
+
+  const handleCopyDescription = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!task.description) return;
+    navigator.clipboard.writeText(task.description);
+    setCopiedDescription(true);
+    setTimeout(() => setCopiedDescription(false), 2000);
+  };
+
+  const [form, setForm] = useState({
+    title: task.title,
+    description: task.description || '',
+    priority: task.priority,
+    due_date: formatDatetimeLocal(task.due_date),
+    drive_link: task.drive_link || '',
+    content_type: task.content_type || '',
+    content_description: task.content_description || '',
+    client_id: task.client_id || '',
+    is_deliverable: task.is_deliverable || false,
+    deliverable_type: task.deliverable_type || 'post',
+    deliverable_month: task.deliverable_month ? task.deliverable_month.substring(0, 7) : (() => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    })(),
+    estimated_hours: task.estimated_time_minutes ? Math.floor(task.estimated_time_minutes / 60).toString() : '',
+    estimated_minutes: task.estimated_time_minutes ? (task.estimated_time_minutes % 60).toString() : '',
+  });
+
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(
+    (task.task_assignees || []).map(a => a.user_id)
+  );
+
+  // Sync state with props when modal opens
+  useEffect(() => {
+    if (isEditDialogOpen) {
+      setForm({
+        title: task.title,
+        description: task.description || '',
+        priority: task.priority,
+        due_date: formatDatetimeLocal(task.due_date),
+        drive_link: task.drive_link || '',
+        content_type: task.content_type || '',
+        content_description: task.content_description || '',
+        client_id: task.client_id || '',
+        is_deliverable: task.is_deliverable || false,
+        deliverable_type: task.deliverable_type || 'post',
+        deliverable_month: task.deliverable_month ? task.deliverable_month.substring(0, 7) : (() => {
+          const now = new Date();
+          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        })(),
+        estimated_hours: task.estimated_time_minutes ? Math.floor(task.estimated_time_minutes / 60).toString() : '',
+        estimated_minutes: task.estimated_time_minutes ? (task.estimated_time_minutes % 60).toString() : '',
+      });
+      setAssigneeIds((task.task_assignees || []).map(a => a.user_id));
+      setError('');
+    }
+  }, [task, isEditDialogOpen]);
+
+  // Lazy load members and clients lists
+  useEffect(() => {
+    if (!isEditDialogOpen) return;
+    setLoadingLists(true);
+    Promise.all([
+      usersApi.list(),
+      closedClientsApi.list(),
+    ]).then(([usersData, clientsData]) => {
+      setMembers(usersData.users);
+      setClients(clientsData.clients);
+    }).catch(err => {
+      console.error(err);
+      setError('Failed to load members or clients');
+    }).finally(() => setLoadingLists(false));
+  }, [isEditDialogOpen]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const removeAssignee = (uid: string) => {
+    setAssigneeIds(prev => prev.filter(i => i !== uid));
+  };
+
+  const unassignedMembers = members.filter(m => !assigneeIds.includes(m.id));
+
+  const handleClick = () => {
+    router.push(`/dashboard/tasks/${task.id}`);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    router.push(`/dashboard/tasks/${task.id}`);
+  };
+
+  const handleAuxClick = (e: React.MouseEvent) => {
+    if (e.button === 1) {
+      e.preventDefault();
+      window.open(`/dashboard/tasks/${task.id}`, '_blank');
+    }
+  };
+
+  const handleToggleArchive = async () => {
+    const archiveState = !task.is_archived;
+    const confirmMsg = archiveState ? t('taskDetail.archiveConfirm') : t('taskDetail.unarchiveConfirm');
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const data = await tasksApi.update(task.id, { is_archived: archiveState } as any);
+      alert(archiveState ? t('tasks.archiveSuccess') : t('tasks.unarchiveSuccess'));
+      if (onTaskUpdated) {
+        onTaskUpdated(data.task);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update task archive status');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(t('taskDetail.deleteConfirm'))) return;
+
+    try {
+      await tasksApi.delete(task.id);
+      if (onTaskDeleted) {
+        onTaskDeleted(task.id);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete task');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (form.due_date) {
+      const creationDateStr = task.created_at ? getCairoDateString(task.created_at) : getCairoTodayString();
+      const dueDateStr = getCairoDateString(form.due_date);
+      if (dueDateStr < creationDateStr) {
+        setError(locale === 'ar' ? 'تاريخ التسليم لا يمكن أن يكون قبل تاريخ الإنشاء' : 'Due date cannot be earlier than task creation date');
+        return;
+      }
+    }
+
+    setSaving(true);
+
+    try {
+      const totalEstMins = (Number(form.estimated_hours || 0) * 60) + Number(form.estimated_minutes || 0);
+
+      const data = await tasksApi.update(task.id, {
+        title: form.title,
+        description: form.description || undefined,
+        priority: form.priority as 'low' | 'medium' | 'high' | 'urgent',
+        due_date: form.due_date ? parseCairoDateTimeToISO(form.due_date) : undefined,
+        estimated_time_minutes: totalEstMins > 0 ? totalEstMins : null,
+        drive_link: form.drive_link || undefined,
+        content_type: form.content_type || undefined,
+        content_description: form.content_description || undefined,
+        client_id: form.client_id || undefined,
+        is_deliverable: form.is_deliverable,
+        deliverable_type: form.is_deliverable ? form.deliverable_type : undefined,
+        deliverable_month: form.is_deliverable ? `${form.deliverable_month}-01` : undefined,
+        assignee_ids: assigneeIds,
+      });
+      setIsEditDialogOpen(false);
+      if (onTaskUpdated) {
+        onTaskUpdated(data.task);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save task');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <Card
+        className="cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 slide-up h-full flex flex-col"
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+        onAuxClick={handleAuxClick}
+      >
+        <CardContent className="p-4 flex flex-col gap-3 flex-1">
+          {/* Header: Type, Priority & Actions */}
+          <div className="flex items-start justify-between gap-4">
+            {/* Top Left: content type & priority badges */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {task.is_archived && (
+                <Badge variant="outline" className="text-[10px] bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/60 font-semibold py-0 px-1.5 h-5 flex items-center justify-center">
+                  🗄️ {t('taskDetail.archivedBadge')}
+                </Badge>
+              )}
+              {task.content_type && (
+                <Badge variant="outline" className="text-[10px] bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900/60 uppercase tracking-wide font-medium py-0 px-1.5 h-5 flex items-center justify-center">
+                  📦 {t(`contentType.${task.content_type}`)}
+                </Badge>
+              )}
+              <PriorityBadge priority={task.priority} />
+              {hasRevisionRequested && (
+                <Badge variant="outline" className="text-[10px] bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-900/60 font-bold py-0 px-1.5 h-5 flex items-center justify-center uppercase tracking-wide">
+                  🔄 {t('status.revision')}
+                </Badge>
+              )}
+              {overdue && (
+                <Badge variant="outline" className="text-[10px] bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900/60 font-bold py-0 px-1.5 h-5 flex items-center justify-center uppercase tracking-wide">
+                  ⚠️ {t('common.overdue')}
+                </Badge>
+              )}
+            </div>
+
+            {/* Top Right: options menu */}
+            {isOwner && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 p-0 text-muted-foreground/70 hover:text-foreground hover:bg-muted rounded-full shrink-0 -mt-1"
+                      onClick={(e) => e.stopPropagation()}
+                      onContextMenu={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className="size-4" />
+                      <span className="sr-only">Actions</span>
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setIsEditDialogOpen(true); }}>
+                    <Pencil className="size-3.5 mr-2" />
+                    {t('common.edit')}
+                  </DropdownMenuItem>
+                  {canArchive && (
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleToggleArchive(); }}>
+                      <span className="mr-2 select-none">🗄️</span>
+                      {task.is_archived ? t('taskDetail.unarchiveTask') : t('taskDetail.archiveTask')}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/20"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                  >
+                    <Trash2 className="size-3.5 mr-2" />
+                    {t('common.delete')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+
+          {/* Body Section: Title & Description */}
+          <div className="flex flex-col text-start">
+            {task.client && (
+              <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1 block">
+                💼 {task.client.name}
+              </span>
+            )}
+            <h3 className="text-sm font-semibold text-foreground leading-snug break-words">
+              {task.title}
+            </h3>
+            {task.description && (
+              <div className="group/desc relative mt-1.5">
+                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed break-words pr-6 rtl:pl-6 rtl:pr-0">
+                  {task.description}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopyDescription}
+                  onContextMenu={(e) => e.stopPropagation()}
+                  className="absolute top-0 right-0 rtl:left-0 rtl:right-auto p-1 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-all"
+                  title={t('taskDetail.copyDescription') || 'Copy Description'}
+                >
+                  {copiedDescription ? (
+                    <Check className="size-3 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <Copy className="size-3" />
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Secondary Widgets Section */}
+          {(() => {
+            const isContentCreator = user?.role === 'content_creator';
+            const isCreator = task.creator_id === user?.id;
+            const canSeeSubmissionProgress = isOwner || isContentCreator || isCreator;
+            const isMySubmitted = myAssignment?.status === 'submitted';
+
+            const shouldShowWidgets = hasRevisionRequested || isMyRevisionNeeded || (canSeeSubmissionProgress && submittedCount > 0) || isMySubmitted || !!loggedTimeText;
+            if (!shouldShowWidgets) return null;
+
+            return (
+              <div className="flex flex-col gap-2 mt-1">
+                {/* Revision banner for worker */}
+                {!canSeeSubmissionProgress && isMyRevisionNeeded && (
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border-s-2 border-amber-500 rounded px-2.5 py-1 text-[11px] text-amber-800 dark:text-amber-300 font-semibold text-start">
+                    🔄 {locale === 'ar' ? 'تعديل مطلوب' : 'Revision Requested'}
+                  </div>
+                )}
+
+                {/* Revision indicator for owner/creator */}
+                {canSeeSubmissionProgress && hasRevisionRequested && (
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border-s-2 border-amber-500 rounded px-2.5 py-1 text-[11px] text-amber-800 dark:text-amber-300 font-semibold text-start">
+                    🔄 {locale === 'ar' ? 'تعديل مطلوب' : 'Revision Requested'}
+                  </div>
+                )}
+
+                {/* Submission progress for admin / content creator */}
+                {canSeeSubmissionProgress && submittedCount > 0 && (
+                  <div className="bg-violet-50 dark:bg-violet-950/20 border-s-2 border-violet-400 rounded px-2.5 py-1 text-[11px] text-violet-800 dark:text-violet-300 font-semibold text-start flex items-center justify-between gap-1 flex-wrap">
+                    <span>📤 {t('tasks.submissionsPending', { count: submittedCount })}</span>
+                    {assignees.find(a => a.submitted_at)?.submitted_at && (
+                      <span className="text-[10px] opacity-85 font-normal">
+                        {formatServerTimestamp(assignees.find(a => a.submitted_at)!.submitted_at, locale)}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Submission banner for assigned worker / intern */}
+                {!canSeeSubmissionProgress && isMySubmitted && (
+                  <div className="bg-violet-50 dark:bg-violet-950/20 border-s-2 border-violet-400 rounded px-2.5 py-1 text-[11px] text-violet-800 dark:text-violet-300 font-semibold text-start flex items-center justify-between gap-1 flex-wrap">
+                    <span>📤 {locale === 'ar' ? 'تم التسليم (بانتظار المراجعة)' : 'Submitted (Pending Review)'}</span>
+                    {myAssignment?.submitted_at && (
+                      <span className="text-[10px] opacity-85 font-normal">
+                        {formatServerTimestamp(myAssignment.submitted_at, locale)}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Logged Time & Overtime Indicator (Only for assigned team members, hidden for managers) */}
+                {!isOwner && myAssignment && (() => {
+                  const mySeconds = myAssignment.total_time_spent || 0;
+                  const estimatedSec = (task.estimated_time_minutes || 0) * 60;
+                  const isOvertime = estimatedSec > 0 && mySeconds > estimatedSec;
+                  
+                  if (isOvertime) {
+                    return (
+                      <div className="text-[10px] bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 font-bold px-2 py-1 rounded border border-rose-200 dark:border-rose-900/50 flex items-center gap-1 select-none text-start">
+                        <span>⚠️</span>
+                        <span>{formatDuration(mySeconds)} / {formatDuration(estimatedSec)}</span>
+                      </div>
+                    );
+                  } else if (estimatedSec > 0) {
+                    return (
+                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1 select-none text-start">
+                        <span>⏱️</span>
+                        <span>{formatDuration(mySeconds)} / {formatDuration(estimatedSec)}</span>
+                      </div>
+                    );
+                  } else if (loggedTimeText) {
+                    return (
+                      <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1 select-none text-start">
+                        <span>⏱️</span>
+                        <span>{loggedTimeText}</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            );
+          })()}
+
+          {/* Bottom section (pinned to bottom) */}
+          <div className="mt-auto flex flex-col gap-2">
+            {/* Line separator */}
+            <div className="h-px bg-border my-1" />
+
+            {/* Row 1: Dates (Created at, Due date & Submission date) */}
+            <div className="flex items-center text-[10px] text-muted-foreground select-none gap-2 flex-wrap text-start px-0.5">
+              <span className="inline-flex items-center gap-1 shrink-0 font-medium">
+                <span>📅</span>
+                <span className="text-muted-foreground/80">{t('taskDetail.created') || 'Created'}:</span>
+                <span className="font-semibold text-foreground">{formatServerTimestamp(task.created_at, locale)}</span>
+              </span>
+              {task.due_date && (
+                <>
+                  <span className="text-muted-foreground/30">|</span>
+                  <span className="inline-flex items-center gap-1 shrink-0 font-medium">
+                    <span>🏁</span>
+                    <span className="text-muted-foreground/80">{t('taskDetail.dueDate') || 'Due'}:</span>
+                    <span className="font-semibold text-foreground">{formatCairoDateTime(task.due_date, locale)}</span>
+                  </span>
+                </>
+              )}
+              {(() => {
+                const subDate = myAssignment?.submitted_at || assignees.find(a => a.submitted_at)?.submitted_at;
+                if (!subDate) return null;
+                return (
+                  <>
+                    <span className="text-muted-foreground/30">|</span>
+                    <span className="inline-flex items-center gap-1 shrink-0 font-medium">
+                      <span>📤</span>
+                      <span className="text-muted-foreground/80">{t('taskDetail.submittedAt') || 'Submitted'}:</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatServerTimestamp(subDate, locale)}</span>
+                    </span>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Row 2: Creator, Assignees, Metrics & Open Button */}
+            <div className="flex items-center justify-between text-muted-foreground text-xs pt-0.5 select-none gap-3 flex-wrap">
+              {/* Left side: Creator & Assignees */}
+              <div className="flex items-center gap-2">
+                {/* Creator Profile */}
+                <div className="flex items-center" title={`${t('tasks.from')}: ${task.creator?.name || 'Unknown'}`}>
+                  {task.creator?.avatar_url ? (
+                    <img
+                      src={task.creator.avatar_url}
+                      alt={task.creator.name}
+                      className="size-8 rounded-full object-cover shrink-0 border border-border"
+                    />
+                  ) : (
+                    <div className="size-8 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-xs font-bold text-white shrink-0 border border-border uppercase">
+                      {task.creator ? getInitials(task.creator.name) : '?'}
+                    </div>
+                  )}
+                </div>
+
+                <span className="text-muted-foreground/50 text-xs font-semibold mr-0.5 select-none">:</span>
+
+                {/* Assignees stacked avatar group */}
+                <div className="flex items-center shrink-0">
+                  {totalAssignees > 0 ? (
+                    <div className="flex items-center">
+                      <div className="flex -space-x-2">
+                        {assignees.slice(0, 3).map(a => (
+                          a.user?.avatar_url ? (
+                            <img
+                              key={a.id}
+                              src={a.user.avatar_url}
+                              alt={a.user.name}
+                              className="size-8 rounded-full object-cover shrink-0 border-2 border-white dark:border-slate-900"
+                              title={a.user.name}
+                            />
+                          ) : (
+                            <div
+                              key={a.id}
+                              className="size-8 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-xs font-bold text-white shrink-0 border-2 border-white dark:border-slate-900 uppercase"
+                              title={a.user?.name || 'Assigned Member'}
+                            >
+                              {a.user ? getInitials(a.user.name) : '?'}
+                            </div>
+                          )
+                        ))}
+                      </div>
+                      {totalAssignees > 3 && (
+                        <span className="text-[10px] text-muted-foreground font-semibold ml-1">
+                          +{totalAssignees - 3}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{t('common.unassigned')}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Right side: Attachments, Comments & Open Arrow Button */}
+              <div className="flex items-center gap-3.5 flex-wrap">
+                {/* Attachments count */}
+                <div className="flex items-center gap-1" title={t('taskDetail.attachments')}>
+                  <Paperclip className="size-3.5 text-muted-foreground/75" />
+                  <span className="text-[11px] font-semibold">
+                    {task.attachments?.length || 0}
+                  </span>
+                </div>
+
+                {/* Comments count */}
+                <div className="flex items-center gap-1" title={t('taskDetail.comments')}>
+                  <MessageSquare className="size-3.5 text-muted-foreground/75" />
+                  <span className="text-[11px] font-semibold">
+                    {task.comments?.length || 0}
+                  </span>
+                </div>
+
+                {/* Arrow button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleClick();
+                  }}
+                  className="size-7 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm flex items-center justify-center transition-all shrink-0"
+                  title={t('common.open') || 'Open'}
+                >
+                  <ArrowRight className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+
+        </CardContent>
+      </Card>
+
+      {/* Edit Task Modal */}
+      {isEditDialogOpen && (
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent 
+            className="sm:max-w-lg max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-foreground">
+                {t('editTask.title')}
+              </DialogTitle>
+            </DialogHeader>
+
+            {loadingLists ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2">
+                <Loader2 className="size-6 animate-spin text-indigo-600" />
+                <span className="text-xs text-muted-foreground">{t('common.loading')}</span>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-2">
+                {error && (
+                  <div className="bg-destructive/10 border border-destructive/30 text-destructive text-xs px-3 py-2 rounded-md">
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-title">{t('createTask.taskTitle')} *</Label>
+                  <Input 
+                    id="edit-title" 
+                    name="title" 
+                    value={form.title} 
+                    onChange={handleChange} 
+                    required 
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-description">{t('createTask.description')}</Label>
+                  <Textarea 
+                    id="edit-description" 
+                    name="description" 
+                    value={form.description} 
+                    onChange={handleChange} 
+                    rows={4} 
+                  />
+                </div>
+
+                <div className="border-t border-border pt-3">
+                  <h4 className="text-xs font-bold mb-2.5">🎥 {t('createTask.contentAssets')}</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <Label>{t('createTask.contentType')}</Label>
+                      <Select 
+                        value={form.content_type} 
+                        onValueChange={v => handleSelectChange('content_type', v || '')}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('createTask.selectContentType')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— None —</SelectItem>
+                          <SelectItem value="post">{t('contentType.post')}</SelectItem>
+                          <SelectItem value="story">{t('contentType.story')}</SelectItem>
+                          <SelectItem value="reel">{t('contentType.reel')}</SelectItem>
+                          <SelectItem value="photos">{t('contentType.photos')}</SelectItem>
+                          <SelectItem value="other">{t('contentType.other')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="edit-drive_link">{t('createTask.driveLink')}</Label>
+                      <Input
+                        id="edit-drive_link"
+                        name="drive_link"
+                        type="url"
+                        placeholder="https://drive.google.com/..."
+                        value={form.drive_link}
+                        onChange={handleChange}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 mt-2.5">
+                    <Label htmlFor="edit-content_description">{t('createTask.contentDetails')}</Label>
+                    <Textarea
+                      id="edit-content_description"
+                      name="content_description"
+                      placeholder={t('createTask.contentDetailsPlaceholder')}
+                      value={form.content_description}
+                      onChange={handleChange}
+                      rows={2}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <Label>{t('createTask.priority')}</Label>
+                    <Select 
+                      value={form.priority} 
+                      onValueChange={v => handleSelectChange('priority', v || '')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">🟢 {t('priority.low')}</SelectItem>
+                        <SelectItem value="medium">🟡 {t('priority.medium')}</SelectItem>
+                        <SelectItem value="high">🟠 {t('priority.high')}</SelectItem>
+                        <SelectItem value="urgent">🔴 {t('priority.urgent')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-due_date">{t('createTask.dueDate')}</Label>
+                    <Input 
+                      id="edit-due_date" 
+                      name="due_date" 
+                      type="datetime-local" 
+                      min={task.created_at ? getCairoDatetimeLocalString(task.created_at) : getCairoDatetimeLocalString()}
+                      value={form.due_date} 
+                      onChange={handleChange}
+                      className="w-full text-xs h-10 px-3"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-client_id">{t('tasks.client')} *</Label>
+                  <Select 
+                    value={form.client_id || 'none'} 
+                    onValueChange={v => handleSelectChange('client_id', v === 'none' || !v ? '' : v)}
+                  >
+                    <SelectTrigger id="edit-client_id">
+                      <SelectValue placeholder={t('tasks.selectClient')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— None —</SelectItem>
+                      {clients.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} {c.company ? `(${c.company})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+
+
+                {/* Multi-Assignee Picker */}
+                <div className="border-t border-border pt-3">
+                  <Label className="mb-2 block">👥 {t('createTask.assignTo')}</Label>
+
+                  {assigneeIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2.5">
+                      {assigneeIds.map(uid => {
+                        const m = members.find(u => u.id === uid);
+                        if (!m) return null;
+                        return (
+                          <Badge
+                            key={uid}
+                            variant="secondary"
+                            className="flex items-center gap-1 py-0.5 px-2 text-xs font-semibold"
+                          >
+                            <div className="size-4.5 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-[7px] font-bold text-white shrink-0 uppercase">
+                              {getInitials(m.name)}
+                            </div>
+                            <span className="truncate max-w-[100px]">{m.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeAssignee(uid)}
+                              className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Select
+                      value=""
+                      onValueChange={val => {
+                        if (val && val !== 'none' && !assigneeIds.includes(val)) {
+                          setAssigneeIds(prev => [...prev, val]);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder={t('createTask.selectMember')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unassignedMembers.map(m => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.name} ({t('role.' + m.role) || m.role})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <DialogFooter className="flex gap-2 justify-end pt-2.5 border-t border-border mt-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setIsEditDialogOpen(false)}
+                    disabled={saving}
+                  >
+                    {t('common.cancel')}
+                  </Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving ? (
+                      <><Loader2 className="size-4 animate-spin mr-1.5" /> {t('editTask.saving')}</>
+                    ) : (
+                      <><Save className="size-4 mr-1.5" /> {t('editTask.saveChanges')}</>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
+}
+

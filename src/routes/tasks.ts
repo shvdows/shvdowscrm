@@ -1,0 +1,1340 @@
+import { Router, Response } from 'express';
+import { supabaseAdmin } from '../lib/supabase';
+import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { ownerOnly, ownerOrTeamLeader, ownerOrTeamLeaderOrSales, ownerOrTeamLeaderOrSalesOrContentCreator } from '../middleware/roleCheck';
+import { sendWebhookNotification } from '../lib/webhook';
+
+const router = Router();
+
+// Helper: build task select query with assignees joined
+const TASK_SELECT = `
+  *,
+  creator:profiles!tasks_creator_id_fkey(id, name, email, role, avatar_url, phone),
+  client:clients(id, name, company),
+  task_assignees(
+    id,
+    user_id,
+    status,
+    submission_link,
+    completion_note,
+    feedback,
+    rating,
+    assigned_at,
+    updated_at,
+    submitted_at,
+    total_time_spent,
+    timer_started_at,
+    user:profiles(id, name, email, role, avatar_url, phone)
+  ),
+  attachments(id),
+  comments(id)
+`;
+
+// Helper: get YYYY-MM-DD in Africa/Cairo timezone
+function getCairoDateString(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(date);
+}
+
+// Helper: check if user is admin/TL
+function isTaskAdmin(role: string): boolean {
+  return role === 'owner' || role === 'team_leader' || role === 'moderation' || role === 'account_manager';
+}
+
+// Helper: check if user is allowed to administer/review a specific task
+async function canAdministerTask(userId: string, role: string, taskId: string): Promise<boolean> {
+  const isAdminRole = isTaskAdmin(role);
+  if (isAdminRole) return true;
+
+  // Non-admins (e.g. content_creator): cannot administer/approve if assigned as a worker
+  const { data: assignment } = await supabaseAdmin
+    .from('task_assignees')
+    .select('id')
+    .eq('task_id', taskId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (assignment) {
+    return false; // Assigned worker cannot administer/approve their own task
+  }
+
+  // Task creator or Content Creator managing intern task can administer/review
+  const { data: task } = await supabaseAdmin
+    .from('tasks')
+    .select('creator_id, task_assignees(user:profiles(role))')
+    .eq('id', taskId)
+    .maybeSingle();
+
+  if (!task) return false;
+
+  if (task.creator_id === userId) return true;
+
+  if (role === 'content_creator') {
+    const hasInternAssignee = (task.task_assignees || []).some((a: any) => a.user?.role === 'content_creator_intern');
+    if (hasInternAssignee) return true;
+  }
+
+  return false;
+}
+
+// Helper: get computed task status based on assignees status
+function getTaskStatus(task: any, userId: string, role: string): string {
+  const assignees = task.task_assignees || [];
+  
+  if (isTaskAdmin(role) || task.creator_id === userId) {
+    // Admin/TL/Manager/Moderator/Creator sees the aggregate status of the task
+    if (assignees.length === 0) {
+      return 'todo';
+    }
+    const allCompleted = assignees.every((a: any) => a.status === 'completed');
+    if (allCompleted) {
+      return 'completed';
+    }
+    const anyInProgress = assignees.some((a: any) => a.status === 'in_progress' || a.status === 'revision');
+    if (anyInProgress) {
+      return 'in_progress';
+    }
+    const anySubmitted = assignees.some((a: any) => a.status === 'submitted');
+    if (anySubmitted) {
+      return 'submitted';
+    }
+    return 'todo';
+  } else {
+    // Regular member sees their own assignment status
+    const myAssignee = assignees.find((a: any) => a.user_id === userId);
+    return myAssignee ? myAssignee.status : 'todo';
+  }
+}
+
+// Helper: enrich task with computed status
+function enrichTask(task: any, userId: string, role: string): any {
+  if (!task) return task;
+  return {
+    ...task,
+    status: getTaskStatus(task, userId, role)
+  };
+}
+
+// GET /api/tasks — Get tasks (owner: all, member: assigned/created)
+router.get('/', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { status, priority, assignee_id, archived, client_id } = req.query;
+    const userRole = req.user!.role;
+    const showArchived = archived === 'true' && userRole !== 'moderation';
+
+    if (isTaskAdmin(userRole)) {
+      // Admin/TL: see all tasks (optionally filter by assignee)
+      let query = supabaseAdmin
+        .from('tasks')
+        .select(TASK_SELECT)
+
+        .order('created_at', { ascending: false });
+
+      if (archived === 'all' && (userRole === 'owner' || userRole === 'team_leader' || userRole === 'account_manager')) {
+        // Return ALL tasks (both active and archived)
+      } else {
+        query = query.eq('is_archived', showArchived);
+      }
+
+      if (priority) query = query.eq('priority', priority as string);
+      if (client_id) query = query.eq('client_id', client_id as string);
+
+      const { data, error } = await query;
+
+      if (error) { res.status(500).json({ error: error.message }); return; }
+
+      let tasks = data || [];
+
+      // Filter by assignee_id if provided (check task_assignees array)
+      if (assignee_id) {
+        tasks = tasks.filter((t: any) =>
+          t.task_assignees?.some((a: any) => a.user_id === assignee_id)
+        );
+      }
+
+      // Enrich tasks with computed status
+      tasks = tasks.map((t: any) => enrichTask(t, req.user!.id, userRole));
+
+      // Filter by status if provided (check the computed status)
+      if (status) {
+        tasks = (status === 'submitted')
+          ? tasks.filter((t: any) => t.status === 'submitted' || t.task_assignees?.some((a: any) => a.status === 'submitted'))
+          : tasks.filter((t: any) => t.status === status);
+      }
+
+      res.json({ tasks });
+    } else {
+      // Member: see tasks assigned to them OR (if content_creator) created by them
+      const { data: assignments, error: aErr } = await supabaseAdmin
+        .from('task_assignees')
+        .select('task_id')
+        .eq('user_id', req.user!.id);
+
+      if (aErr) { res.status(500).json({ error: aErr.message }); return; }
+
+      const assignedTaskIds = (assignments || []).map((a: any) => a.task_id);
+
+      let query = supabaseAdmin
+        .from('tasks')
+        .select(TASK_SELECT)
+        .eq('is_archived', false)
+        .order('created_at', { ascending: false });
+
+      if (userRole === 'content_creator') {
+        const { data: internAssignments } = await supabaseAdmin
+          .from('task_assignees')
+          .select('task_id, user:profiles!inner(role)')
+          .eq('user.role', 'content_creator_intern');
+
+        const internTaskIds = (internAssignments || []).map((a: any) => a.task_id);
+        const accessibleTaskIds = Array.from(new Set([...assignedTaskIds, ...internTaskIds]));
+
+        if (accessibleTaskIds.length > 0) {
+          query = query.or(`id.in.(${accessibleTaskIds.join(',')}),creator_id.eq.${req.user!.id}`);
+        } else {
+          query = query.eq('creator_id', req.user!.id);
+        }
+      } else {
+        if (assignedTaskIds.length === 0) { res.json({ tasks: [] }); return; }
+        query = query.in('id', assignedTaskIds);
+      }
+
+      if (priority) query = query.eq('priority', priority as string);
+      if (client_id) query = query.eq('client_id', client_id as string);
+
+      const { data, error } = await query;
+
+      if (error) { res.status(500).json({ error: error.message }); return; }
+
+      let tasks = data || [];
+
+      // Filter by assignee_id if provided
+      if (assignee_id) {
+        tasks = tasks.filter((t: any) =>
+          t.task_assignees?.some((a: any) => a.user_id === assignee_id)
+        );
+      }
+
+      // Enrich tasks with computed status
+      tasks = tasks.map((t: any) => enrichTask(t, req.user!.id, userRole));
+
+      // Filter by status (check computed status)
+      if (status) {
+        tasks = (status === 'submitted')
+          ? tasks.filter((t: any) => t.status === 'submitted' || t.task_assignees?.some((a: any) => a.status === 'submitted'))
+          : tasks.filter((t: any) => t.status === status);
+      }
+
+      res.json({ tasks });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
+});
+
+// GET /api/tasks/daily — Tasks due today
+router.get('/daily', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    let query = supabaseAdmin
+      .from('tasks')
+      .select(TASK_SELECT)
+      .eq('due_date', today)
+      .eq('is_archived', false)
+      .order('created_at', { ascending: false });
+
+    const { data, error } = await query;
+
+    if (error) { res.status(500).json({ error: error.message }); return; }
+
+    let tasks = data || [];
+
+    // Members: filter to only their assigned tasks
+    if (!isTaskAdmin(req.user!.role)) {
+      tasks = tasks.filter((t: any) =>
+        t.task_assignees?.some((a: any) => a.user_id === req.user!.id)
+      );
+    }
+
+    // Enrich tasks
+    tasks = tasks.map((t: any) => enrichTask(t, req.user!.id, req.user!.role));
+
+    res.json({ tasks });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch daily tasks' });
+  }
+});
+
+// GET /api/tasks/stats — Dashboard stats
+router.get('/stats', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const isAdmin = isTaskAdmin(req.user!.role);
+
+    // Week boundaries (Sunday to Saturday)
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sunday
+    const thisWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek, 0, 0, 0, 0);
+    const lastWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek - 7, 0, 0, 0, 0);
+    const lastWeekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek - 1, 23, 59, 59, 999);
+
+    const thisWeekStartISO = thisWeekStart.toISOString();
+    const lastWeekStartISO = lastWeekStart.toISOString();
+    const lastWeekEndISO = lastWeekEnd.toISOString();
+
+    if (isAdmin) {
+      // Admin: count unique active tasks
+      const { data: tasks, error } = await supabaseAdmin
+        .from('tasks')
+        .select(`
+          id,
+          due_date,
+          task_assignees(status, updated_at, assigned_at)
+        `)
+        .eq('is_archived', false);
+
+      if (error) { res.status(500).json({ error: error.message }); return; }
+
+      let total = 0;
+      let completed = 0;
+      let inProgress = 0;
+      let submitted = 0;
+      let todo = 0;
+      let overdue = 0;
+      let completedThisWeek = 0;
+      let completedLastWeek = 0;
+
+      for (const t of (tasks || [])) {
+        total++;
+        const assignees = t.task_assignees || [];
+        
+        // Check if overdue
+        const hasUncompleted = assignees.length === 0 || assignees.some((a: any) => a.status !== 'completed' && a.status !== 'submitted');
+        if (t.due_date && t.due_date < today && hasUncompleted) {
+          overdue++;
+        }
+
+        // Count weekly completed assignees
+        assignees.forEach((a: any) => {
+          if (a.status === 'completed') {
+            const compTime = a.updated_at || a.assigned_at;
+            if (compTime) {
+              if (compTime >= thisWeekStartISO) {
+                completedThisWeek++;
+              } else if (compTime >= lastWeekStartISO && compTime <= lastWeekEndISO) {
+                completedLastWeek++;
+              }
+            }
+          }
+        });
+
+        if (assignees.length === 0) {
+          todo++;
+          continue;
+        }
+
+        const allCompleted = assignees.every((a: any) => a.status === 'completed');
+        const anyInProgress = assignees.some((a: any) => a.status === 'in_progress' || a.status === 'revision');
+        const anySubmitted = assignees.some((a: any) => a.status === 'submitted');
+
+        if (allCompleted) {
+          completed++;
+        } else if (anyInProgress) {
+          inProgress++;
+        } else if (anySubmitted) {
+          submitted++;
+        } else {
+          todo++;
+        }
+      }
+
+      res.json({ stats: { total, completed, inProgress, submitted, todo, overdue, completedThisWeek, completedLastWeek } });
+    } else {
+      // Member: only see stats for their own assignments
+      const { data: assignments, error } = await supabaseAdmin
+        .from('task_assignees')
+        .select('status, updated_at, assigned_at, task:tasks(due_date, is_archived)')
+        .eq('user_id', req.user!.id);
+
+      if (error) { res.status(500).json({ error: error.message }); return; }
+
+      // Filter out archived tasks from stats calculations
+      const items = (assignments || []).filter((a: any) => !a.task?.is_archived);
+      const total = items.length;
+      const completed = items.filter((a: any) => a.status === 'completed').length;
+      const inProgress = items.filter((a: any) => a.status === 'in_progress' || a.status === 'revision').length;
+      const submitted = items.filter((a: any) => a.status === 'submitted').length;
+      const todo = items.filter((a: any) => a.status === 'todo').length;
+      const overdue = items.filter((a: any) => {
+        const dueDate = a.task?.due_date;
+        return dueDate && dueDate < today && a.status !== 'completed' && a.status !== 'submitted';
+      }).length;
+
+      let completedThisWeek = 0;
+      let completedLastWeek = 0;
+
+      items.forEach((a: any) => {
+        if (a.status === 'completed') {
+          const compTime = a.updated_at || a.assigned_at;
+          if (compTime) {
+            if (compTime >= thisWeekStartISO) {
+              completedThisWeek++;
+            } else if (compTime >= lastWeekStartISO && compTime <= lastWeekEndISO) {
+              completedLastWeek++;
+            }
+          }
+        }
+      });
+
+      res.json({ stats: { total, completed, inProgress, submitted, todo, overdue, completedThisWeek, completedLastWeek } });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// POST /api/tasks — Create a new task (owner, team leader, sales, or content creator)
+router.post('/', authMiddleware, ownerOrTeamLeaderOrSalesOrContentCreator, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { title, description, priority, due_date, assignee_ids, drive_link, content_type, content_description, client_id, is_deliverable, deliverable_type, deliverable_month, estimated_time_minutes } = req.body;
+
+  if (!title) {
+    res.status(400).json({ error: 'Title is required' });
+    return;
+  }
+
+  if (due_date) {
+    const minDueDate = getCairoDateString();
+    const dueDateStr = String(due_date).split('T')[0];
+    if (dueDateStr < minDueDate) {
+      res.status(400).json({ error: 'Due date cannot be earlier than task creation date' });
+      return;
+    }
+  }
+
+  // Content creators can only assign tasks to Content Creator Interns
+  if (req.user!.role === 'content_creator' && Array.isArray(assignee_ids) && assignee_ids.length > 0) {
+    const { data: assigneeProfiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, role')
+      .in('id', assignee_ids);
+
+    const invalidAssignees = (assigneeProfiles || []).filter((p: any) => p.role !== 'content_creator_intern');
+    if (invalidAssignees.length > 0) {
+      res.status(403).json({ error: 'Content Creators can only assign tasks to Content Creator Interns' });
+      return;
+    }
+  }
+
+  try {
+    // Create the task (shared fields only)
+    const insertData: Record<string, unknown> = {
+      title,
+      description: description || null,
+      priority: priority || 'medium',
+      status: 'todo', // kept for backward compat, not used by app
+      due_date: due_date || null,
+      assignee_id: null, // deprecated
+      creator_id: req.user!.id,
+      drive_link: drive_link || null,
+      content_type: content_type || null,
+      content_description: content_description || null,
+      client_id: client_id || null,
+      is_deliverable: is_deliverable ?? false,
+      deliverable_type: deliverable_type || null,
+      deliverable_month: deliverable_month || null,
+      estimated_time_minutes: estimated_time_minutes !== undefined && estimated_time_minutes !== null && !isNaN(Number(estimated_time_minutes)) ? Number(estimated_time_minutes) : null,
+    };
+
+    let { data: task, error: taskError } = await supabaseAdmin
+      .from('tasks')
+      .insert(insertData)
+      .select('*')
+      .single();
+
+    while (taskError && (taskError.message?.includes('schema cache') || taskError.message?.includes('estimated_time_minutes'))) {
+      if (taskError.message?.includes('schema cache')) {
+        const match = taskError.message.match(/Could not find the '([^']+)' column/);
+        if (match && match[1] && match[1] in insertData) {
+          delete insertData[match[1]];
+        } else {
+          break;
+        }
+      } else if (taskError.message?.includes('estimated_time_minutes')) {
+        delete insertData.estimated_time_minutes;
+      }
+      const fallback = await supabaseAdmin
+        .from('tasks')
+        .insert(insertData)
+        .select('*')
+        .single();
+      task = fallback.data;
+      taskError = fallback.error;
+    }
+
+    if (taskError) { res.status(500).json({ error: taskError.message }); return; }
+
+    // Insert assignees
+    const ids: string[] = Array.isArray(assignee_ids) ? assignee_ids : (assignee_ids ? [assignee_ids] : []);
+    if (ids.length > 0) {
+      const rows = ids.map((uid: string) => ({
+        task_id: task.id,
+        user_id: uid,
+        status: 'todo',
+      }));
+
+      const { error: assignError } = await supabaseAdmin
+        .from('task_assignees')
+        .insert(rows);
+
+      if (assignError) {
+        console.error('Failed to insert assignees:', assignError.message);
+      }
+    }
+
+    // Re-fetch full task with assignees
+    const { data: fullTask, error: fetchError } = await supabaseAdmin
+      .from('tasks')
+      .select(TASK_SELECT)
+      .eq('id', task.id)
+      .single();
+
+    if (fetchError) { res.status(500).json({ error: fetchError.message }); return; }
+
+    // Dispatch webhook notifications in the background
+    console.log(`[Webhook Debug] Task created: ${fullTask?.id}, assignees count: ${fullTask?.task_assignees?.length || 0}`);
+    if (fullTask && fullTask.task_assignees && fullTask.task_assignees.length > 0) {
+      const sender = {
+        id: req.user!.id,
+        name: req.user!.name,
+        email: req.user!.email,
+      };
+
+      for (const a of fullTask.task_assignees) {
+        console.log(`[Webhook Debug] Assignee entry:`, JSON.stringify({ user_id: a.user_id, has_user: !!a.user, user_name: a.user?.name || 'N/A' }));
+        if (a.user) {
+          sendWebhookNotification({
+            type: 'task',
+            action: 'assigned',
+            task: {
+              id: fullTask.id,
+              title: fullTask.title,
+              description: fullTask.description || undefined,
+              priority: fullTask.priority,
+              due_date: fullTask.due_date || undefined,
+            },
+            sender,
+            receiver: {
+              id: a.user.id,
+              name: a.user.name,
+              email: a.user.email,
+              phone: a.user.phone,
+            },
+          }).catch(err => console.error('[Webhook Debug] Failed to dispatch webhook:', err));
+        } else {
+          console.warn(`[Webhook Debug] Skipped: a.user is null/undefined for user_id=${a.user_id}`);
+        }
+      }
+    } else {
+      console.warn(`[Webhook Debug] No assignees found on task, skipping webhook dispatch.`);
+    }
+
+    res.status(201).json({ task: enrichTask(fullTask, req.user!.id, req.user!.role) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+// GET /api/tasks/:id — Get task detail
+router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('tasks')
+      .select(`
+        *,
+        creator:profiles!tasks_creator_id_fkey(id, name, email, avatar_url),
+        task_assignees(
+          id,
+          user_id,
+          status,
+          submission_link,
+          completion_note,
+          feedback,
+          rating,
+          assigned_at,
+          updated_at,
+          total_time_spent,
+          timer_started_at,
+          user:profiles(id, name, email, avatar_url)
+        ),
+        attachments(*),
+        comments(*, user:profiles(id, name, email, avatar_url))
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    // Members can only view tasks they're assigned to, created by them, or intern tasks for content creators
+    if (!isTaskAdmin(req.user!.role)) {
+      const isAssigned = data.task_assignees?.some((a: any) => a.user_id === req.user!.id);
+      const isCreator = data.creator_id === req.user!.id;
+      const isContentCreatorManagingIntern = req.user!.role === 'content_creator' &&
+        data.task_assignees?.some((a: any) => a.user?.role === 'content_creator_intern');
+
+      if (!isAssigned && !isCreator && !isContentCreatorManagingIntern) {
+        res.status(403).json({ error: 'Access denied' });
+        return;
+      }
+    }
+
+    // Filter out comments older than 24 hours (fallback cleanup)
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    if (data.comments) {
+      const expiredIds = data.comments
+        .filter((c: any) => c.created_at < twentyFourHoursAgo)
+        .map((c: any) => c.id);
+
+      // Delete expired comments in background
+      if (expiredIds.length > 0) {
+        supabaseAdmin
+          .from('comments')
+          .delete()
+          .in('id', expiredIds)
+          .then(() => {});
+      }
+
+      // Only return non-expired comments
+      data.comments = data.comments.filter((c: any) => c.created_at >= twentyFourHoursAgo);
+    }
+
+    res.json({ task: enrichTask(data, req.user!.id, req.user!.role) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch task' });
+  }
+});
+
+// PUT /api/tasks/:id — Update task (shared fields for admin, own assignment for members)
+router.put('/:id', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const admin = await canAdministerTask(req.user!.id, req.user!.role, id as string);
+
+  try {
+    let toAdd: string[] = [];
+    // Verify task exists
+    const { data: existing, error: fetchError } = await supabaseAdmin
+      .from('tasks')
+      .select('id, created_at')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existing) {
+      res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    if (admin) {
+      // Admin: update shared task fields
+      const { title, description, priority, due_date, drive_link, content_type, content_description, assignee_ids, client_id, is_archived, is_deliverable, deliverable_type, deliverable_month, estimated_time_minutes } = req.body;
+
+      if (due_date) {
+
+        const minDueDate = existing.created_at ? getCairoDateString(new Date(existing.created_at)) : getCairoDateString();
+        const dueDateStr = String(due_date).split('T')[0];
+        if (dueDateStr < minDueDate) {
+          res.status(400).json({ error: 'Due date cannot be earlier than task creation date' });
+          return;
+        }
+      }
+
+      const updates: Record<string, unknown> = {};
+      if (title !== undefined) updates.title = title;
+      if (description !== undefined) updates.description = description;
+      if (priority !== undefined) updates.priority = priority;
+      if (due_date !== undefined) updates.due_date = due_date;
+      if (drive_link !== undefined) updates.drive_link = drive_link;
+      if (content_type !== undefined) updates.content_type = content_type;
+      if (content_description !== undefined) updates.content_description = content_description;
+      if (client_id !== undefined) updates.client_id = client_id || null;
+      if (is_deliverable !== undefined) updates.is_deliverable = is_deliverable;
+      if (deliverable_type !== undefined) updates.deliverable_type = deliverable_type;
+      if (deliverable_month !== undefined) updates.deliverable_month = deliverable_month;
+      if (estimated_time_minutes !== undefined) updates.estimated_time_minutes = estimated_time_minutes !== null && !isNaN(Number(estimated_time_minutes)) ? Number(estimated_time_minutes) : null;
+      if (is_archived !== undefined) {
+        if (req.user!.role === 'moderation') {
+          res.status(403).json({ error: 'Access denied. Moderators cannot archive or unarchive tasks.' });
+          return;
+        }
+        updates.is_archived = is_archived;
+      }
+      updates.updated_at = new Date().toISOString();
+
+      let { error: updateError } = await supabaseAdmin
+        .from('tasks')
+        .update(updates)
+        .eq('id', id);
+
+      while (updateError && (updateError.message?.includes('schema cache') || updateError.message?.includes('estimated_time_minutes'))) {
+        if (updateError.message?.includes('schema cache')) {
+          const match = updateError.message.match(/Could not find the '([^']+)' column/);
+          if (match && match[1] && match[1] in updates) {
+            delete updates[match[1]];
+          } else {
+            break;
+          }
+        } else if (updateError.message?.includes('estimated_time_minutes')) {
+          delete updates.estimated_time_minutes;
+        }
+        const fallback = await supabaseAdmin
+          .from('tasks')
+          .update(updates)
+          .eq('id', id);
+        updateError = fallback.error;
+      }
+
+      if (updateError) { res.status(500).json({ error: updateError.message }); return; }
+
+      // If assignee_ids provided, sync assignees
+      if (assignee_ids !== undefined) {
+        const newIds: string[] = Array.isArray(assignee_ids) ? assignee_ids : [];
+
+        if (req.user!.role === 'content_creator' && newIds.length > 0) {
+          const { data: assigneeProfiles } = await supabaseAdmin
+            .from('profiles')
+            .select('id, role')
+            .in('id', newIds);
+
+          const invalidAssignees = (assigneeProfiles || []).filter((p: any) => p.role !== 'content_creator_intern');
+          if (invalidAssignees.length > 0) {
+            res.status(403).json({ error: 'Content Creators can only assign tasks to Content Creator Interns' });
+            return;
+          }
+        }
+
+        // Get current assignees
+        const { data: currentAssignees } = await supabaseAdmin
+          .from('task_assignees')
+          .select('user_id')
+          .eq('task_id', id);
+
+        const currentIds = (currentAssignees || []).map((a: any) => a.user_id);
+        toAdd = newIds.filter(uid => !currentIds.includes(uid));
+        const toRemove = currentIds.filter((uid: string) => !newIds.includes(uid));
+
+        if (toRemove.length > 0) {
+          await supabaseAdmin
+            .from('task_assignees')
+            .delete()
+            .eq('task_id', id)
+            .in('user_id', toRemove);
+        }
+
+        if (toAdd.length > 0) {
+          const rows = toAdd.map(uid => ({ task_id: id, user_id: uid, status: 'todo' }));
+          await supabaseAdmin.from('task_assignees').insert(rows);
+        }
+      }
+
+      // If the admin is also an assignee and sent member-like fields, update their own assignment
+      const { status, submission_link, completion_note } = req.body;
+      if (status || submission_link !== undefined || completion_note !== undefined) {
+        const { data: ownAssignment } = await supabaseAdmin
+          .from('task_assignees')
+          .select('*')
+          .eq('task_id', id)
+          .eq('user_id', req.user!.id)
+          .maybeSingle();
+
+        if (ownAssignment) {
+          const assignUpdates: Record<string, unknown> = {};
+          const allowedStatuses = ['todo', 'in_progress', 'submitted'];
+          if (status && allowedStatuses.includes(status)) {
+            assignUpdates.status = status;
+            if (status === 'submitted') {
+              assignUpdates.submitted_at = new Date().toISOString();
+            }
+          }
+          if (submission_link !== undefined) assignUpdates.submission_link = submission_link;
+          if (completion_note !== undefined) assignUpdates.completion_note = completion_note;
+          assignUpdates.updated_at = new Date().toISOString();
+
+          // Stop timer if transitioning out of active working statuses
+          const activeStatuses = ['todo', 'in_progress', 'revision'];
+          if (status && !activeStatuses.includes(status) && ownAssignment.timer_started_at) {
+            const startTime = new Date(ownAssignment.timer_started_at).getTime();
+            const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+            assignUpdates.total_time_spent = (ownAssignment.total_time_spent || 0) + elapsedSeconds;
+            assignUpdates.timer_started_at = null;
+          }
+
+          await supabaseAdmin
+            .from('task_assignees')
+            .update(assignUpdates)
+            .eq('id', ownAssignment.id);
+        }
+      }
+    } else {
+      // Member: check they're assigned
+      const { data: assignment, error: aErr } = await supabaseAdmin
+        .from('task_assignees')
+        .select('*')
+        .eq('task_id', id)
+        .eq('user_id', req.user!.id)
+        .single();
+
+      if (aErr || !assignment) {
+        res.status(403).json({ error: 'Access denied' });
+        return;
+      }
+
+      // Member can update their own assignment
+      const { status, submission_link, completion_note } = req.body;
+      const assignUpdates: Record<string, unknown> = {};
+      const allowedStatuses = ['todo', 'in_progress', 'submitted'];
+      if (status && allowedStatuses.includes(status)) {
+        assignUpdates.status = status;
+        if (status === 'submitted') {
+          assignUpdates.submitted_at = new Date().toISOString();
+        }
+      }
+      if (submission_link !== undefined) assignUpdates.submission_link = submission_link;
+      if (completion_note !== undefined) assignUpdates.completion_note = completion_note;
+      assignUpdates.updated_at = new Date().toISOString();
+
+      // If status is transitioning out of active working statuses, stop the timer if active
+      const activeStatuses = ['todo', 'in_progress', 'revision'];
+      if (status && !activeStatuses.includes(status) && assignment.timer_started_at) {
+        const startTime = new Date(assignment.timer_started_at).getTime();
+        const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+        assignUpdates.total_time_spent = (assignment.total_time_spent || 0) + elapsedSeconds;
+        assignUpdates.timer_started_at = null;
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('task_assignees')
+        .update(assignUpdates)
+        .eq('id', assignment.id);
+
+      if (updateError) { res.status(500).json({ error: updateError.message }); return; }
+
+      // Touch parent task updated_at
+      await supabaseAdmin
+        .from('tasks')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', id);
+    }
+
+    // Re-fetch full task
+    const { data: fullTask, error: reFetchError } = await supabaseAdmin
+      .from('tasks')
+      .select(TASK_SELECT)
+      .eq('id', id)
+      .single();
+
+    if (reFetchError) { res.status(500).json({ error: reFetchError.message }); return; }
+
+    // Dispatch webhook notifications for newly added assignees
+    if (toAdd.length > 0 && fullTask && fullTask.task_assignees) {
+      const sender = {
+        id: req.user!.id,
+        name: req.user!.name,
+        email: req.user!.email,
+      };
+
+      const newlyAddedAssignees = fullTask.task_assignees.filter((a: any) => toAdd.includes(a.user_id));
+
+      for (const a of newlyAddedAssignees) {
+        if (a.user) {
+          sendWebhookNotification({
+            type: 'task',
+            action: 'assigned',
+            task: {
+              id: fullTask.id,
+              title: fullTask.title,
+              description: fullTask.description || undefined,
+              priority: fullTask.priority,
+              due_date: fullTask.due_date || undefined,
+            },
+            sender,
+            receiver: {
+              id: a.user.id,
+              name: a.user.name,
+              email: a.user.email,
+              phone: a.user.phone,
+            },
+          }).catch(err => console.error('Failed to dispatch webhook:', err));
+        }
+      }
+    }
+
+    res.json({ task: enrichTask(fullTask, req.user!.id, req.user!.role) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+// POST /api/tasks/:id/assignees — Add an assignee to a task (admin/TL/creator)
+router.post('/:id/assignees', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { user_id } = req.body;
+
+  if (!user_id) {
+    res.status(400).json({ error: 'user_id is required' });
+    return;
+  }
+
+  if (!(await canAdministerTask(req.user!.id, req.user!.role, id as string))) {
+    res.status(403).json({ error: 'Access denied. You cannot administer this task if you are assigned to it.' });
+    return;
+  }
+
+  try {
+    const { error } = await supabaseAdmin
+      .from('task_assignees')
+      .insert({ task_id: id, user_id, status: 'todo' });
+
+    if (error) {
+      if (error.code === '23505') {
+        res.status(409).json({ error: 'User is already assigned to this task' });
+      } else {
+        res.status(500).json({ error: error.message });
+      }
+      return;
+    }
+
+    // Re-fetch full task
+    const { data: fullTask, error: fetchError } = await supabaseAdmin
+      .from('tasks')
+      .select(TASK_SELECT)
+      .eq('id', id)
+      .single();
+
+    if (fetchError) { res.status(500).json({ error: fetchError.message }); return; }
+
+    // Dispatch webhook notification
+    if (fullTask && fullTask.task_assignees) {
+      const sender = {
+        id: req.user!.id,
+        name: req.user!.name,
+        email: req.user!.email,
+      };
+
+      const newlyAdded = fullTask.task_assignees.find((a: any) => a.user_id === user_id);
+      if (newlyAdded && newlyAdded.user) {
+        sendWebhookNotification({
+          type: 'task',
+          action: 'assigned',
+          task: {
+            id: fullTask.id,
+            title: fullTask.title,
+            description: fullTask.description || undefined,
+            priority: fullTask.priority,
+            due_date: fullTask.due_date || undefined,
+          },
+          sender,
+          receiver: {
+            id: newlyAdded.user.id,
+            name: newlyAdded.user.name,
+            email: newlyAdded.user.email,
+            phone: newlyAdded.user.phone,
+          },
+        }).catch(err => console.error('Failed to dispatch webhook:', err));
+      }
+    }
+
+    res.status(201).json({ task: enrichTask(fullTask, req.user!.id, req.user!.role) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add assignee' });
+  }
+});
+
+// DELETE /api/tasks/:id/assignees/:userId — Remove an assignee (admin/TL/creator)
+router.delete('/:id/assignees/:userId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id, userId } = req.params;
+
+  if (!(await canAdministerTask(req.user!.id, req.user!.role, id as string))) {
+    res.status(403).json({ error: 'Access denied. You cannot administer this task if you are assigned to it.' });
+    return;
+  }
+
+  try {
+    const { error } = await supabaseAdmin
+      .from('task_assignees')
+      .delete()
+      .eq('task_id', id)
+      .eq('user_id', userId);
+
+    if (error) { res.status(500).json({ error: error.message }); return; }
+
+    // Re-fetch full task
+    const { data: fullTask, error: fetchError } = await supabaseAdmin
+      .from('tasks')
+      .select(TASK_SELECT)
+      .eq('id', id)
+      .single();
+
+    if (fetchError) { res.status(500).json({ error: fetchError.message }); return; }
+
+    res.json({ task: enrichTask(fullTask, req.user!.id, req.user!.role) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove assignee' });
+  }
+});
+
+// PUT /api/tasks/:id/assignees/:userId — Admin/Creator updates a specific assignee's data
+router.put('/:id/assignees/:userId', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id, userId } = req.params;
+  const { status, feedback, rating, due_date } = req.body;
+
+  if (req.user!.id === userId) {
+    res.status(403).json({ error: 'Access denied. You cannot approve or review your own task assignment.' });
+    return;
+  }
+
+  if (!(await canAdministerTask(req.user!.id, req.user!.role, id as string))) {
+    res.status(403).json({ error: 'Access denied. You cannot administer this task if you are assigned to it.' });
+    return;
+  }
+
+  try {
+    if (due_date) {
+      await supabaseAdmin
+        .from('tasks')
+        .update({ due_date, updated_at: new Date().toISOString() })
+        .eq('id', id);
+    }
+
+    // Check if assignee exists & stop timer if active
+    const { data: assignment } = await supabaseAdmin
+      .from('task_assignees')
+      .select('*')
+      .eq('task_id', id)
+      .eq('user_id', userId)
+      .single();
+
+    const updates: Record<string, unknown> = {};
+    if (status !== undefined) {
+      updates.status = status;
+      if (status === 'submitted') {
+        updates.submitted_at = new Date().toISOString();
+      } else if (status === 'revision') {
+        updates.submitted_at = null;
+      } else if (status === 'completed' && assignment && !assignment.submitted_at) {
+        updates.submitted_at = new Date().toISOString();
+      }
+    }
+    if (feedback !== undefined) updates.feedback = feedback;
+    if (rating !== undefined) {
+      if (rating !== null && (typeof rating !== 'number' || rating < 1 || rating > 10)) {
+        res.status(400).json({ error: 'Rating must be an integer between 1 and 10' });
+        return;
+      }
+      updates.rating = rating;
+    }
+    updates.updated_at = new Date().toISOString();
+
+    if (assignment && assignment.timer_started_at) {
+      const startTime = new Date(assignment.timer_started_at).getTime();
+      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startTime) / 1000));
+      updates.total_time_spent = (assignment.total_time_spent || 0) + elapsedSeconds;
+      updates.timer_started_at = null;
+    }
+
+    const { error } = await supabaseAdmin
+      .from('task_assignees')
+      .update(updates)
+      .eq('task_id', id)
+      .eq('user_id', userId);
+
+    if (error) { res.status(500).json({ error: error.message }); return; }
+
+    // Touch parent task updated_at
+    await supabaseAdmin
+      .from('tasks')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    // Re-fetch full task
+    const { data: fullTask, error: fetchError } = await supabaseAdmin
+      .from('tasks')
+      .select(TASK_SELECT)
+      .eq('id', id)
+      .single();
+
+    if (fetchError) { res.status(500).json({ error: fetchError.message }); return; }
+
+    res.json({ task: enrichTask(fullTask, req.user!.id, req.user!.role) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update assignee' });
+  }
+});
+
+// DELETE /api/tasks/:id — Delete task (owner, team leader, or content creator for intern tasks)
+router.delete('/:id', authMiddleware, ownerOrTeamLeaderOrSalesOrContentCreator, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  if (!(await canAdministerTask(req.user!.id, req.user!.role, id as string))) {
+    res.status(403).json({ error: 'Access denied. You cannot administer this task if you are assigned to it.' });
+    return;
+  }
+
+  try {
+    const { error } = await supabaseAdmin
+      .from('tasks')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.json({ message: 'Task deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
+});
+
+// POST /api/tasks/target — Set or update task target (owner only)
+router.post('/target', authMiddleware, ownerOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { user_id, target_tasks, month } = req.body;
+
+  if (!user_id || target_tasks === undefined || !month) {
+    res.status(400).json({ error: 'user_id, target_tasks, and month (YYYY-MM) are required' });
+    return;
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('task_targets')
+      .upsert(
+        { user_id, target_tasks: Number(target_tasks), month },
+        { onConflict: 'user_id,month' }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.json({ target: data });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to set target' });
+  }
+});
+
+// GET /api/tasks/target/:userId/:month — Fetch target for a specific user and month (owner or self)
+router.get('/target/:userId/:month', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { userId, month } = req.params;
+  const userIdStr = userId as string;
+  const monthStr = month as string;
+  const callerId = req.user!.id;
+  const callerRole = req.user!.role;
+
+  if (callerRole !== 'owner' && callerId !== userIdStr) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('task_targets')
+      .select('*')
+      .eq('user_id', userIdStr)
+      .eq('month', monthStr)
+      .maybeSingle();
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.json({ target: data || null });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch target' });
+  }
+});
+
+// GET /api/tasks/target/:userId/:month/progress — Fetch progress (owner or self)
+router.get('/target/:userId/:month/progress', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { userId, month } = req.params;
+  const userIdStr = userId as string;
+  const monthStr = month as string;
+  const callerId = req.user!.id;
+  const callerRole = req.user!.role;
+
+  if (callerRole !== 'owner' && callerId !== userIdStr) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  try {
+    // 1. Fetch target tasks
+    const { data: targetData, error: targetError } = await supabaseAdmin
+      .from('task_targets')
+      .select('target_tasks')
+      .eq('user_id', userIdStr)
+      .eq('month', monthStr)
+      .maybeSingle();
+
+    if (targetError) {
+      res.status(500).json({ error: targetError.message });
+      return;
+    }
+
+    const target = targetData ? targetData.target_tasks : 0;
+
+    // 2. Fetch completed tasks count for that month using updated_at
+    const [year, monthNum] = monthStr.split('-').map(Number);
+    const startDate = new Date(Date.UTC(year, monthNum - 1, 1)).toISOString();
+    const endDate = new Date(Date.UTC(year, monthNum, 1)).toISOString();
+
+    // Count of completed tasks for this user in this date range
+    const { count, error: countError } = await supabaseAdmin
+      .from('task_assignees')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userIdStr)
+      .eq('status', 'completed')
+      .gte('updated_at', startDate)
+      .lt('updated_at', endDate);
+
+    if (countError) {
+      res.status(500).json({ error: countError.message });
+      return;
+    }
+
+    const completedTasks = count || 0;
+    const progressPercent = target > 0 ? Math.round((completedTasks / target) * 100) : 0;
+
+    res.json({
+      target,
+      completedTasks,
+      progressPercent
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch task target progress' });
+  }
+});
+
+// POST /api/tasks/:id/timer/start — Start timer for an assignee
+router.post('/:id/timer/start', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const callerId = req.user!.id;
+
+  try {
+    const { data: assignment, error: aErr } = await supabaseAdmin
+      .from('task_assignees')
+      .select('*')
+      .eq('task_id', id)
+      .eq('user_id', callerId)
+      .single();
+
+    if (aErr || !assignment) {
+      res.status(403).json({ error: 'Access denied. You are not assigned to this task.' });
+      return;
+    }
+
+    if (assignment.status !== 'in_progress') {
+      res.status(400).json({ error: 'You must start the task before you can start the timer.' });
+      return;
+    }
+
+    if (assignment.timer_started_at) {
+      const { data: fullTask, error: fetchError } = await supabaseAdmin
+        .from('tasks')
+        .select(TASK_SELECT)
+        .eq('id', id)
+        .single();
+      if (fetchError) { res.status(500).json({ error: fetchError.message }); return; }
+      res.json({ task: enrichTask(fullTask, req.user!.id, req.user!.role) });
+      return;
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('task_assignees')
+      .update({
+        timer_started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', assignment.id);
+
+    if (updateError) { res.status(500).json({ error: updateError.message }); return; }
+
+    const { data: fullTask, error: fetchError } = await supabaseAdmin
+      .from('tasks')
+      .select(TASK_SELECT)
+      .eq('id', id)
+      .single();
+
+    if (fetchError) { res.status(500).json({ error: fetchError.message }); return; }
+    res.json({ task: enrichTask(fullTask, req.user!.id, req.user!.role) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start timer' });
+  }
+});
+
+// POST /api/tasks/:id/timer/stop — Stop/Pause timer for an assignee
+router.post('/:id/timer/stop', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const callerId = req.user!.id;
+
+  try {
+    const { data: assignment, error: aErr } = await supabaseAdmin
+      .from('task_assignees')
+      .select('*')
+      .eq('task_id', id)
+      .eq('user_id', callerId)
+      .single();
+
+    if (aErr || !assignment) {
+      res.status(403).json({ error: 'Access denied. You are not assigned to this task.' });
+      return;
+    }
+
+    if (!assignment.timer_started_at) {
+      const { data: fullTask, error: fetchError } = await supabaseAdmin
+        .from('tasks')
+        .select(TASK_SELECT)
+        .eq('id', id)
+        .single();
+      if (fetchError) { res.status(500).json({ error: fetchError.message }); return; }
+      res.json({ task: enrichTask(fullTask, req.user!.id, req.user!.role) });
+      return;
+    }
+
+    const startTime = new Date(assignment.timer_started_at).getTime();
+    const nowTime = Date.now();
+    const elapsedSeconds = Math.max(0, Math.floor((nowTime - startTime) / 1000));
+    const newTotalTime = (assignment.total_time_spent || 0) + elapsedSeconds;
+
+    const { error: updateError } = await supabaseAdmin
+      .from('task_assignees')
+      .update({
+        timer_started_at: null,
+        total_time_spent: newTotalTime,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', assignment.id);
+
+    if (updateError) { res.status(500).json({ error: updateError.message }); return; }
+
+    const { data: fullTask, error: fetchError } = await supabaseAdmin
+      .from('tasks')
+      .select(TASK_SELECT)
+      .eq('id', id)
+      .single();
+
+    if (fetchError) { res.status(500).json({ error: fetchError.message }); return; }
+    res.json({ task: enrichTask(fullTask, req.user!.id, req.user!.role) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to stop timer' });
+  }
+});
+
+export default router;

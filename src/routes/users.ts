@@ -1,0 +1,641 @@
+import { Router, Response } from 'express';
+import { supabaseAdmin, createTempClient } from '../lib/supabase';
+import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { ownerOnly, ownerOrTeamLeaderOnly } from '../middleware/roleCheck';
+import multer from 'multer';
+
+const router = Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit for avatars is plenty
+});
+
+// GET /api/users — List all team members (owner, team leader, sales, moderation, account_manager, content_creator)
+router.get('/', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user || !['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'].includes(req.user.role)) {
+    res.status(403).json({ error: 'Access denied.' });
+    return;
+  }
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id, name, email, role, avatar_url, phone, emergency_contact_name, emergency_contact_phone, national_id, address, bio, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.json({ users: data });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// GET /api/users/performance — Get performance stats for team members (owner only)
+router.get('/performance', authMiddleware, ownerOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { startDate, endDate } = req.query;
+
+  try {
+    const sDate = startDate ? String(startDate) : undefined;
+    const eDate = endDate ? String(endDate) : undefined;
+    const currentMonthStr = new Date().toISOString().substring(0, 7);
+
+    // Week boundaries (Sunday to Saturday)
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sunday
+    const thisWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek, 0, 0, 0, 0);
+    const lastWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek - 7, 0, 0, 0, 0);
+    const lastWeekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek - 1, 23, 59, 59, 999);
+
+    const thisWeekStartISO = thisWeekStart.toISOString();
+    const lastWeekStartISO = lastWeekStart.toISOString();
+    const lastWeekEndISO = lastWeekEnd.toISOString();
+
+    // 1. Fetch profiles
+    const profilesPromise = supabaseAdmin
+      .from('profiles')
+      .select('id, name, email, role, avatar_url, phone, created_at')
+      .order('created_at', { ascending: false });
+
+    // 2. Fetch task assignees within the date window
+    let assigneesQuery = supabaseAdmin
+      .from('task_assignees')
+      .select('user_id, status, rating, assigned_at, updated_at, total_time_spent, task:tasks(estimated_time_minutes)');
+    if (sDate) assigneesQuery = assigneesQuery.gte('assigned_at', sDate);
+    if (eDate) assigneesQuery = assigneesQuery.lte('assigned_at', eDate);
+
+    // 3. Fetch clients (leads) within the date window
+    let clientsQuery = supabaseAdmin
+      .from('clients')
+      .select('sales_rep_id, created_at, pipeline_stage');
+    if (sDate) clientsQuery = clientsQuery.gte('created_at', sDate);
+    if (eDate) clientsQuery = clientsQuery.lte('created_at', eDate);
+
+    // 4. Fetch call logs within the date window
+    let callsQuery = supabaseAdmin
+      .from('sales_call_logs')
+      .select('sales_rep_id, call_date');
+    if (sDate) callsQuery = callsQuery.gte('call_date', sDate);
+    if (eDate) callsQuery = callsQuery.lte('call_date', eDate);
+
+    // 5. Fetch contracts within the date window
+    let contractsQuery = supabaseAdmin
+      .from('contracts')
+      .select('sales_rep_id, amount, created_at');
+    if (sDate) contractsQuery = contractsQuery.gte('created_at', sDate);
+    if (eDate) contractsQuery = contractsQuery.lte('created_at', eDate);
+
+    // 6. Fetch task targets for the current month
+    const targetsPromise = supabaseAdmin
+      .from('task_targets')
+      .select('user_id, target_tasks')
+      .eq('month', currentMonthStr);
+
+    // 7. Fetch sales targets for the current month
+    const salesTargetsPromise = supabaseAdmin
+      .from('sales_targets')
+      .select('user_id, target_amount')
+      .eq('month', currentMonthStr);
+
+    const [
+      { data: profiles, error: profilesErr },
+      { data: assigneesRes, error: assigneesErr },
+      { data: clients, error: clientsErr },
+      { data: calls, error: callsErr },
+      { data: contracts, error: contractsErr },
+      { data: targets, error: targetsErr },
+      { data: salesTargets, error: salesTargetsErr }
+    ] = await Promise.all([
+      profilesPromise,
+      assigneesQuery,
+      clientsQuery,
+      callsQuery,
+      contractsQuery,
+      targetsPromise,
+      salesTargetsPromise
+    ]);
+
+    if (profilesErr) throw profilesErr;
+
+    let assignees: any[] = [];
+    if (assigneesErr) {
+      console.warn('Assignees query with estimated_time_minutes failed, falling back:', assigneesErr.message);
+      let fallbackQuery = supabaseAdmin
+        .from('task_assignees')
+        .select('user_id, status, rating, assigned_at, updated_at, total_time_spent');
+      if (sDate) fallbackQuery = fallbackQuery.gte('assigned_at', sDate);
+      if (eDate) fallbackQuery = fallbackQuery.lte('assigned_at', eDate);
+      const { data: fbData, error: fbErr } = await fallbackQuery;
+      if (fbErr) throw fbErr;
+      assignees = fbData || [];
+    } else {
+      assignees = assigneesRes || [];
+    }
+
+    if (clientsErr) throw clientsErr;
+    if (callsErr) throw callsErr;
+    if (contractsErr) throw contractsErr;
+    if (targetsErr) throw targetsErr;
+    if (salesTargetsErr) throw salesTargetsErr;
+
+    const targetMap = new Map<string, number>((targets || []).map(t => [t.user_id, t.target_tasks]));
+    const salesTargetMap = new Map<string, number>((salesTargets || []).map(t => [t.user_id, Number(t.target_amount)]));
+
+    // Map profiles to performance stats
+    const performanceData = (profiles || []).map(user => {
+      // Aggregate task stats
+      const userAssignments = (assignees || []).filter(a => a.user_id === user.id);
+      const totalTasks = userAssignments.length;
+      const completedTasks = userAssignments.filter(a => a.status === 'completed').length;
+      const incompleteTasks = totalTasks - completedTasks;
+      const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      let completedThisWeek = 0;
+      let completedLastWeek = 0;
+      
+      const ratedAssignments = userAssignments.filter(a => a.rating !== null && a.rating !== undefined);
+      const averageRating = ratedAssignments.length > 0
+        ? Math.round((ratedAssignments.reduce((acc, curr) => acc + (curr.rating || 0), 0) / ratedAssignments.length) * 10) / 10
+        : null;
+
+      const completedAssignments = userAssignments.filter(a => a.status === 'completed');
+      completedAssignments.forEach((a: any) => {
+        const compTime = a.updated_at || a.assigned_at;
+        if (compTime) {
+          if (compTime >= thisWeekStartISO) {
+            completedThisWeek++;
+          } else if (compTime >= lastWeekStartISO && compTime <= lastWeekEndISO) {
+            completedLastWeek++;
+          }
+        }
+      });
+
+      const averageCompletionTime = completedAssignments.length > 0
+        ? Math.round(completedAssignments.reduce((acc, curr) => acc + (curr.total_time_spent || 0), 0) / completedAssignments.length)
+        : null;
+
+      // Time variance & on-time stats for completed tasks with an estimated time limit
+      const completedWithEstimate = completedAssignments.filter((a: any) => a.task && a.task.estimated_time_minutes != null);
+      let onTimeCount = 0;
+      let overtimeTasksCount = 0;
+      let netTimeVarianceSeconds: number | null = null;
+
+      if (completedWithEstimate.length > 0) {
+        let totalVariance = 0;
+        completedWithEstimate.forEach((a: any) => {
+          const estimatedSec = (a.task.estimated_time_minutes || 0) * 60;
+          const actualSec = a.total_time_spent || 0;
+          const diffSec = estimatedSec - actualSec; // >0 means time saved, <0 means time wasted
+          totalVariance += diffSec;
+
+          if (actualSec <= estimatedSec) {
+            onTimeCount++;
+          } else {
+            overtimeTasksCount++;
+          }
+        });
+        netTimeVarianceSeconds = totalVariance;
+      }
+
+      const onTimeRate = completedWithEstimate.length > 0
+        ? Math.round((onTimeCount / completedWithEstimate.length) * 100)
+        : null;
+
+      // Aggregate sales stats
+      const userLeads = (clients || []).filter(c => c.sales_rep_id === user.id);
+      const leadsManaged = userLeads.length;
+
+      const userCalls = (calls || []).filter(c => c.sales_rep_id === user.id);
+      const callsLogged = userCalls.length;
+
+      const userContracts = (contracts || []).filter(c => c.sales_rep_id === user.id);
+      const dealsWon = userContracts.length;
+      const closedRevenue = userContracts.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+
+      const conversionRate = leadsManaged > 0 ? Math.round((dealsWon / leadsManaged) * 100) : 0;
+      const meetingsDone = userLeads.filter(c => c.pipeline_stage === 'meeting_done').length;
+
+      return {
+        user,
+        taskStats: {
+          totalTasks,
+          completedTasks,
+          incompleteTasks,
+          completionRate,
+          averageRating,
+          averageCompletionTime,
+          onTimeRate,
+          netTimeVarianceSeconds,
+          overtimeTasksCount,
+          completedThisWeek,
+          completedLastWeek,
+          taskTarget: targetMap.get(user.id) || null
+        },
+        salesStats: {
+          leadsManaged,
+          callsLogged,
+          dealsWon,
+          closedRevenue,
+          conversionRate,
+          salesTarget: salesTargetMap.get(user.id) || null,
+          meetingsDone
+        }
+      };
+    });
+
+    res.json({ performance: performanceData });
+  } catch (err: any) {
+    console.error('Failed to compile performance stats:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch performance data' });
+  }
+});
+
+// PUT /api/users/profile — Update currently authenticated user's profile & security credentials
+router.put('/profile', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  
+  const { name, avatar_url, phone, email, password, currentPassword, emergency_contact_name, emergency_contact_phone, national_id, address, bio } = req.body;
+  
+  try {
+    // Fetch current user from Supabase Auth Admin
+    const { data: authUserData, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(req.user.id);
+    if (getUserError || !authUserData?.user) {
+      res.status(404).json({ error: 'User account not found in Auth system' });
+      return;
+    }
+    const currentAuthEmail = authUserData.user.email || '';
+
+    // 1. If changing credentials, verify current password if provided
+    if (currentPassword) {
+      const tempClient = createTempClient();
+      const { error: verifyError } = await tempClient.auth.signInWithPassword({
+        email: currentAuthEmail,
+        password: currentPassword,
+      });
+      if (verifyError) {
+        res.status(400).json({ error: 'Current password is incorrect' });
+        return;
+      }
+    }
+
+    // 2. Update Supabase Auth if email or password is being changed
+    const authUpdates: Record<string, any> = {};
+    if (email && email.trim() !== '') {
+      const targetEmail = email.trim();
+      if (targetEmail.toLowerCase() !== currentAuthEmail.toLowerCase()) {
+        authUpdates.email = targetEmail;
+        authUpdates.email_confirm = true;
+      }
+    }
+    if (password) {
+      if (password.length < 6) {
+        res.status(400).json({ error: 'Password must be at least 6 characters' });
+        return;
+      }
+      authUpdates.password = password;
+    }
+
+    if (Object.keys(authUpdates).length > 0) {
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(req.user.id, authUpdates);
+      if (authError) {
+        res.status(400).json({ error: authError.message });
+        return;
+      }
+    }
+
+    // 3. Update profiles table
+    const updates: Record<string, any> = {};
+    if (name !== undefined) updates.name = name;
+    if (avatar_url !== undefined) updates.avatar_url = avatar_url;
+    if (phone !== undefined) updates.phone = phone || null;
+    if (email && email.trim() !== '') updates.email = email.trim();
+    if (emergency_contact_name !== undefined) updates.emergency_contact_name = emergency_contact_name || null;
+    if (emergency_contact_phone !== undefined) updates.emergency_contact_phone = emergency_contact_phone || null;
+    if (national_id !== undefined) updates.national_id = national_id || null;
+    if (address !== undefined) updates.address = address || null;
+    if (bio !== undefined) updates.bio = bio || null;
+
+    if (Object.keys(updates).length > 0) {
+      const { data, error } = await supabaseAdmin
+        .from('profiles')
+        .update(updates)
+        .eq('id', req.user.id)
+        .select()
+        .single();
+
+      if (error) {
+        res.status(500).json({ error: error.message });
+        return;
+      }
+
+      res.json({ user: data });
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('id', req.user.id)
+        .single();
+
+      if (error) {
+        res.status(500).json({ error: error.message });
+        return;
+      }
+
+      res.json({ user: data });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to update profile' });
+  }
+});
+
+// POST /api/users/profile/avatar — Upload avatar photo to Supabase storage
+router.post('/profile/avatar', authMiddleware, upload.single('avatar'), async (req: AuthRequest, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  if (!req.file) {
+    res.status(400).json({ error: 'No file provided' });
+    return;
+  }
+
+  try {
+    const file = req.file;
+    const cleanFilename = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+    const storagePath = `avatars/${req.user.id}/${Date.now()}_${cleanFilename}`;
+
+    // Upload to Supabase Storage in attachments bucket
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('attachments')
+      .upload(storagePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      res.status(500).json({ error: uploadError.message });
+      return;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabaseAdmin.storage
+      .from('attachments')
+      .getPublicUrl(storagePath);
+
+    // Update profile in DB with new avatar_url
+    const { data: updatedUser, error: updateDbError } = await supabaseAdmin
+      .from('profiles')
+      .update({ avatar_url: urlData.publicUrl })
+      .eq('id', req.user.id)
+      .select()
+      .single();
+
+    if (updateDbError) {
+      res.status(500).json({ error: updateDbError.message });
+      return;
+    }
+
+    res.json({ publicUrl: urlData.publicUrl, user: updatedUser });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to upload avatar' });
+  }
+});
+
+// POST /api/users — Create a new team member (owner or team leader)
+router.post('/', authMiddleware, ownerOrTeamLeaderOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { name, email, password, role, phone } = req.body;
+
+  if (!name || !email || !password) {
+    res.status(400).json({ error: 'Name, email, and password are required' });
+    return;
+  }
+
+  // Prevent team leaders from creating an owner account
+  if (req.user?.role === 'team_leader' && role === 'owner') {
+    res.status(403).json({ error: 'Team leaders cannot create owner accounts' });
+    return;
+  }
+
+  const validRoles = ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'client', 'content_creator', 'content_creator_intern', 'hr'];
+  const userRole = validRoles.includes(role) ? role : 'member';
+
+  if (req.user?.role === 'team_leader' && userRole === 'owner') {
+    res.status(403).json({ error: 'Team leaders cannot create owner accounts' });
+    return;
+  }
+
+  try {
+    // Create user in Supabase Auth
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+
+    if (authError || !authData.user) {
+      res.status(400).json({ error: authError?.message || 'Failed to create user' });
+      return;
+    }
+
+    // Insert profile
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .insert({
+        id: authData.user.id,
+        name,
+        email,
+        role: userRole,
+        phone: phone || null,
+      })
+      .select()
+      .single();
+
+    if (profileError) {
+      // Rollback: delete auth user
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      res.status(500).json({ error: profileError.message });
+      return;
+    }
+
+    res.status(201).json({ user: profile });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
+// PUT /api/users/:id — Update user (owner or team leader)
+router.put('/:id', authMiddleware, ownerOrTeamLeaderOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const { name, role, email, password, phone, emergency_contact_name, emergency_contact_phone, national_id, address, bio } = req.body;
+
+  try {
+    // Guards for non-owners (e.g. team_leader)
+    if (req.user?.role !== 'owner') {
+      const { data: targetProfile, error: fetchError } = await supabaseAdmin
+        .from('profiles')
+        .select('role')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !targetProfile) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      if (targetProfile.role === 'owner') {
+        res.status(403).json({ error: 'Team leaders cannot modify owner accounts' });
+        return;
+      }
+
+      if (role === 'owner') {
+        res.status(403).json({ error: 'Team leaders cannot promote users to owner' });
+        return;
+      }
+    }
+
+    // 1. Update Supabase Auth if email or password is provided
+    const authUpdates: any = {};
+    if (email) {
+      authUpdates.email = email;
+      authUpdates.email_confirm = true;
+    }
+    if (password) {
+      if (password.length < 6) {
+        res.status(400).json({ error: 'Password must be at least 6 characters' });
+        return;
+      }
+      authUpdates.password = password;
+    }
+
+    if (Object.keys(authUpdates).length > 0) {
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, authUpdates);
+      if (authError) {
+        res.status(400).json({ error: authError.message });
+        return;
+      }
+    }
+
+    // 2. Update profiles table
+    const updates: Record<string, string> = {};
+    if (name) updates.name = name;
+    if (role && ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'client', 'content_creator', 'content_creator_intern', 'hr'].includes(role)) updates.role = role;
+    if (email) updates.email = email;
+    if (phone !== undefined) updates.phone = phone || null;
+    if (emergency_contact_name !== undefined) updates.emergency_contact_name = emergency_contact_name || null;
+    if (emergency_contact_phone !== undefined) updates.emergency_contact_phone = emergency_contact_phone || null;
+    if (national_id !== undefined) updates.national_id = national_id || null;
+    if (address !== undefined) updates.address = address || null;
+    if (bio !== undefined) updates.bio = bio || null;
+
+    if (Object.keys(updates).length > 0) {
+      const { data, error } = await supabaseAdmin
+        .from('profiles')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        res.status(500).json({ error: error.message });
+        return;
+      }
+
+      res.json({ user: data });
+    } else {
+      // Just fetch the profile to return if no profile updates were requested
+      const { data, error } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        res.status(500).json({ error: error.message });
+        return;
+      }
+
+      res.json({ user: data });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to update user' });
+  }
+});
+
+// GET /api/users/:id — Get a team member's full profile
+router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const isManager = req.user?.role === 'owner' || req.user?.role === 'team_leader';
+
+  if (!isManager && id !== req.user?.id) {
+    res.status(403).json({ error: 'Access denied.' });
+    return;
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    res.json({ user: data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to fetch user' });
+  }
+});
+
+// DELETE /api/users/:id — Remove a team member (owner or team leader)
+router.delete('/:id', authMiddleware, ownerOrTeamLeaderOnly, async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+
+  if (req.user?.id === id) {
+    res.status(400).json({ error: 'Cannot delete your own account' });
+    return;
+  }
+
+  try {
+    // Guards for non-owners (e.g. team_leader)
+    if (req.user?.role !== 'owner') {
+      const { data: targetProfile, error: fetchError } = await supabaseAdmin
+        .from('profiles')
+        .select('role')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !targetProfile) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      if (targetProfile.role === 'owner') {
+        res.status(403).json({ error: 'Team leaders cannot delete owner accounts' });
+        return;
+      }
+    }
+
+    // Delete from Supabase Auth (cascades to profiles via DB trigger)
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+export default router;
