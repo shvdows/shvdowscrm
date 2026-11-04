@@ -1,6 +1,6 @@
 export const en: Record<string, string> = {
   // ── Common ──────────────────────────────────────────────────────────
-  'common.appName': 'Sawaqly CRM',
+  'common.appName': 'SHADOWS CRM',
   'common.marketingAgency': 'Marketing Agency',
   'common.signOut': 'Sign out',
   'common.cancel': 'Cancel',
@@ -145,7 +145,7 @@ export const en: Record<string, string> = {
   'lang.en': 'English',
   'lang.ar': 'العربية',
   'theme.title': 'Appearance',
-  'theme.subtitle': 'Customize how Sawaqly CRM looks on your device',
+  'theme.subtitle': 'Customize how SHADOWS CRM looks on your device',
   'theme.light': 'Light',
   'theme.dark': 'Dark',
   'theme.system': 'System',
@@ -391,7 +391,7 @@ export const en: Record<string, string> = {
   'team.fullName': 'Full Name',
   'team.fullNamePlaceholder': 'e.g. John Doe',
   'team.emailAddress': 'Email Address',
-  'team.emailPlaceholder': 'e.g. john@sawaqly.com',
+  'team.emailPlaceholder': 'e.g. john@shvdows.com',
   'team.passwordLabel': 'Password',
   'team.roleLabel': 'Role',
   'team.selectRole': 'Select a role',

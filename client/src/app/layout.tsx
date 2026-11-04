@@ -10,8 +10,11 @@ const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 const notoArabic = Noto_Sans_Arabic({subsets:['arabic'],variable:'--font-arabic', weight:['400','500','600','700']});
 
 export const metadata: Metadata = {
-  title: 'Sawaqly CRM — Marketing Agency',
-  description: 'Task management CRM for marketing agency teams',
+  title: 'SHADOWS CRM — Media & Advertising',
+  description: 'We Move In Silence — Management & Workflow System',
+  icons: {
+    icon: '/logo.png',
+  },
 };
 
 export default function RootLayout({
@@ -20,12 +23,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" dir="ltr" suppressHydrationWarning className={cn("font-sans", geist.variable, notoArabic.variable)}>
+    <html lang="en" dir="ltr" suppressHydrationWarning className={cn("dark font-sans", geist.variable, notoArabic.variable)}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: `
           try {
-            var theme = localStorage.getItem('theme') || 'system';
-            var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            var theme = localStorage.getItem('theme') || 'dark';
+            var isDark = theme !== 'light';
             if (isDark) {
               document.documentElement.classList.add('dark');
               document.documentElement.classList.remove('light');

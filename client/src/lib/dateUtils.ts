@@ -1,5 +1,5 @@
 /**
- * Direct date utilities for sawaqlycrm.
+ * Direct date utilities for shvdowscrm.
  * Stores and displays exact date and time as selected by the user without timezone offsets.
  */
 

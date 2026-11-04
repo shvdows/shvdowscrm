@@ -8,65 +8,76 @@
    DESIGN TOKENS
    ========================================= */
 :root {
-  /* Sawaqly Marketing Agency Brand Colors */
-  --brand-blue: #1D61E7;
-  --brand-yellow: #FFD200;
-  --brand-blue-rgb: 29, 97, 231;
-  --brand-yellow-rgb: 255, 210, 0;
+  /* SHADOWS Media & Advertising Brand Colors */
+  --brand-red: #E11827;
+  --brand-crimson: #910814;
+  --brand-black: #08080A;
+  --brand-surface: #111114;
+  --brand-surface-2: #18181D;
+  --brand-border: #222228;
+  --brand-white: #F7F5F5;
+  --brand-grey: #AFAAAF;
+
+  --brand-blue: #E11827;
+  --brand-yellow: #910814;
+  --brand-blue-rgb: 225, 24, 39;
+  --brand-yellow-rgb: 145, 8, 20;
 
   /* Colors */
-  --color-bg: #f8f9fc;
+  --color-bg: #f5f5f7;
   --color-surface: #ffffff;
-  --color-surface-2: #f1f3f9;
-  --color-border: #e4e7f0;
-  --color-border-hover: #c5cbe0;
+  --color-surface-2: #eeeeef;
+  --color-border: #e2e2e5;
+  --color-border-hover: #E11827;
 
-  --color-primary: #1D61E7; /* Default primary is now Sawaqly Blue */
-  --color-primary-hover: #1553c7;
-  --color-primary-light: #e8f0fe;
-  --color-primary-text: #1d4ed8;
+  --color-primary: #E11827;
+  --color-primary-hover: #910814;
+  --color-primary-light: rgba(225, 24, 39, 0.1);
+  --color-primary-text: #E11827;
 
-  --color-text-primary: #111827;
-  --color-text-secondary: #6b7280;
-  --color-text-muted: #9ca3af;
+  --color-text-primary: #08080A;
+  --color-text-secondary: #5a5a65;
+  --color-text-muted: #8d8d99;
 
   /* Priority colors */
-  --priority-urgent-bg: #fff1f2;
-  --priority-urgent-text: #be123c;
-  --priority-urgent-dot: #f43f5e;
+  --priority-urgent-bg: rgba(225, 24, 39, 0.12);
+  --priority-urgent-text: #E11827;
+  --priority-urgent-dot: #E11827;
 
-  --priority-high-bg: #fff7ed;
-  --priority-high-text: #c2410c;
+  --priority-high-bg: rgba(249, 115, 22, 0.12);
+  --priority-high-text: #ea580c;
   --priority-high-dot: #f97316;
 
-  --priority-medium-bg: #fefce8;
-  --priority-medium-text: #a16207;
+  --priority-medium-bg: rgba(234, 179, 8, 0.12);
+  --priority-medium-text: #ca8a04;
   --priority-medium-dot: #eab308;
 
-  --priority-low-bg: #f0fdf4;
-  --priority-low-text: #15803d;
+  --priority-low-bg: rgba(34, 197, 94, 0.12);
+  --priority-low-text: #16a34a;
   --priority-low-dot: #22c55e;
 
   /* Status colors */
   --status-todo-bg: #f1f5f9;
   --status-todo-text: #475569;
 
-  --status-inprogress-bg: #eff6ff;
-  --status-inprogress-text: #1d4ed8;
+  --status-inprogress-bg: rgba(225, 24, 39, 0.1);
+  --status-inprogress-text: #E11827;
 
-  --status-submitted-bg: #f0fdf4;
-  --status-submitted-text: #15803d;
+  --status-submitted-bg: rgba(34, 197, 94, 0.1);
+  --status-submitted-text: #16a34a;
 
-  --status-revision-bg: #fff7ed;
-  --status-revision-text: #c2410c;
+  --status-revision-bg: rgba(249, 115, 22, 0.1);
+  --status-revision-text: #ea580c;
 
-  --status-completed-bg: #f5f3ff;
-  --status-completed-text: #6d28d9;
+  --status-completed-bg: rgba(145, 8, 20, 0.12);
+  --status-completed-text: #910814;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.10), 0 4px 12px rgba(0, 0, 0, 0.06);
+  /* Shadows with subtle Red ambient */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 20px rgba(225, 24, 39, 0.25);
+  --shadow-glow-lg: 0 0 35px rgba(225, 24, 39, 0.4);
 
   /* Radius */
   --radius-sm: 6px;
@@ -83,68 +94,68 @@
   --transition-slow: 0.35s ease;
 
   /* ---- Shadcn/UI required CSS variables ---- */
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
+  --background: 0 0% 98%;
+  --foreground: 240 10% 4%;
   --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
+  --card-foreground: 240 10% 4%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --primary: 220 81% 51%;
+  --popover-foreground: 240 10% 4%;
+  --primary: 356 79% 49%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 49 100% 50%;
-  --secondary-foreground: 222 47% 11%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  --accent: 210 40% 94%;
-  --accent-foreground: 222 47% 11%;
-  --destructive: 0 84% 60%;
+  --secondary: 0 0% 94%;
+  --secondary-foreground: 240 10% 4%;
+  --muted: 240 5% 94%;
+  --muted-foreground: 240 4% 45%;
+  --accent: 356 79% 96%;
+  --accent-foreground: 356 79% 49%;
+  --destructive: 356 79% 49%;
   --destructive-foreground: 0 0% 100%;
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 220 81% 51%;
+  --border: 240 6% 90%;
+  --input: 240 6% 90%;
+  --ring: 356 79% 49%;
   --radius: 0.625rem;
 }
 
 .dark {
-  /* Dark Sawaqly Brand theme */
-  --color-bg: #0b0f19;
-  --color-surface: #111827;
-  --color-surface-2: #1e293b;
-  --color-border: #1e293b;
-  --color-border-hover: #334155;
+  /* SHADOWS Cinematic Dark Brand theme (70% Shadow Black, 20% Signature Red, 10% Soft White) */
+  --color-bg: #08080A;
+  --color-surface: #111114;
+  --color-surface-2: #16161B;
+  --color-border: #1E1E24;
+  --color-border-hover: rgba(225, 24, 39, 0.4);
 
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-primary-light: rgba(59, 130, 246, 0.15);
-  --color-primary-text: #60a5fa;
+  --color-primary: #E11827;
+  --color-primary-hover: #910814;
+  --color-primary-light: rgba(225, 24, 39, 0.15);
+  --color-primary-text: #E11827;
 
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
+  --color-text-primary: #F7F5F5;
+  --color-text-secondary: #AFAAAF;
+  --color-text-muted: #6B6B76;
 
   /* Priority colors */
-  --priority-urgent-bg: rgba(244, 63, 94, 0.15);
-  --priority-urgent-text: #fda4af;
-  --priority-urgent-dot: #f43f5e;
+  --priority-urgent-bg: rgba(225, 24, 39, 0.2);
+  --priority-urgent-text: #ff6b76;
+  --priority-urgent-dot: #E11827;
 
-  --priority-high-bg: rgba(249, 115, 22, 0.15);
+  --priority-high-bg: rgba(249, 115, 22, 0.18);
   --priority-high-text: #fdba74;
   --priority-high-dot: #f97316;
 
-  --priority-medium-bg: rgba(234, 179, 8, 0.15);
+  --priority-medium-bg: rgba(234, 179, 8, 0.18);
   --priority-medium-text: #fde047;
   --priority-medium-dot: #eab308;
 
-  --priority-low-bg: rgba(34, 197, 94, 0.15);
+  --priority-low-bg: rgba(34, 197, 94, 0.18);
   --priority-low-text: #86efac;
   --priority-low-dot: #22c55e;
 
   /* Status colors */
-  --status-todo-bg: rgba(100, 116, 139, 0.2);
+  --status-todo-bg: rgba(107, 107, 118, 0.25);
   --status-todo-text: #cbd5e1;
 
-  --status-inprogress-bg: rgba(59, 130, 246, 0.2);
-  --status-inprogress-text: #93c5fd;
+  --status-inprogress-bg: rgba(225, 24, 39, 0.2);
+  --status-inprogress-text: #ff8089;
 
   --status-submitted-bg: rgba(34, 197, 94, 0.2);
   --status-submitted-text: #86efac;
@@ -152,34 +163,36 @@
   --status-revision-bg: rgba(249, 115, 22, 0.2);
   --status-revision-text: #fdba74;
 
-  --status-completed-bg: rgba(168, 85, 247, 0.2);
-  --status-completed-text: #c084fc;
+  --status-completed-bg: rgba(145, 8, 20, 0.25);
+  --status-completed-text: #ff9da4;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+  /* Shadows & Ambient Glows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.8), 0 4px 12px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px rgba(225, 24, 39, 0.25);
+  --shadow-glow-lg: 0 0 35px rgba(225, 24, 39, 0.45);
 
   /* ---- Shadcn/UI required CSS variables ---- */
-  --background: 222 47% 7%;
-  --foreground: 210 40% 98%;
-  --card: 222 47% 11%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222 47% 11%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
+  --background: 240 11% 3.5%;
+  --foreground: 0 0% 97%;
+  --card: 240 8% 7%;
+  --card-foreground: 0 0% 97%;
+  --popover: 240 8% 7%;
+  --popover-foreground: 0 0% 97%;
+  --primary: 356 79% 49%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 6% 12%;
+  --secondary-foreground: 0 0% 97%;
+  --muted: 240 6% 12%;
+  --muted-foreground: 0 0% 68%;
+  --accent: 356 79% 49%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 356 79% 49%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 8% 13%;
+  --input: 240 8% 13%;
+  --ring: 356 79% 49%;
 }
 
 /* =========================================

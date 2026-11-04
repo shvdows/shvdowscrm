@@ -41,7 +41,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="app-layout">
       {/* Mobile Topbar */}
-      <header className="mobile-topbar md:hidden flex items-center justify-between px-4 border-b border-border bg-background fixed top-0 left-0 right-0 z-40 h-[68px]">
+      <header className="mobile-topbar md:hidden flex items-center justify-between px-4 border-b border-[#E2E8F0] dark:border-[#1E1E24] bg-white dark:bg-[#08080A] fixed top-0 left-0 right-0 z-40 h-[68px]">
         <button
           onClick={() => setSidebarOpen(true)}
           className="p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors relative"
@@ -49,14 +49,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           <Menu className="size-6" />
           {hasUnread && (
-            <span className="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-rose-500 animate-pulse border-2 border-background" />
+            <span className="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-[#E11827] animate-pulse border-2 border-background shadow-[0_0_8px_rgba(225,24,39,0.8)]" />
           )}
         </button>
         <div className="flex items-center gap-2">
-          <div className="size-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-base shrink-0">
-            S
+          <div className="size-8 flex items-center justify-center overflow-hidden shrink-0">
+            <img src="/brand/owl.png" alt="SHADOWS" className="size-full object-contain filter drop-shadow-[0_0_6px_rgba(225,24,39,0.4)]" />
           </div>
-          <span className="text-sm font-bold text-foreground tracking-tight">{t('common.appName')}</span>
+          <span className="text-sm font-black text-foreground tracking-[0.15em] uppercase">{t('common.appName')}</span>
         </div>
         <div className="flex items-center gap-2">
           <Link href="/dashboard/profile" title={t('nav.myProfile')}>
@@ -64,18 +64,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <img
                 src={user.avatar_url}
                 alt={user.name}
-                className="size-8 rounded-full object-cover shrink-0 border border-border hover:ring-2 hover:ring-primary transition-all"
+                className="size-8 rounded-full object-cover shrink-0 border border-border hover:ring-2 hover:ring-[#E11827] transition-all"
                 title={`${user.name} (${user.role})`}
               />
             ) : (
-              <div className="size-8 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-[11px] font-bold shrink-0 hover:ring-2 hover:ring-primary transition-all" title={`${user?.name} (${user?.role})`}>
+              <div className="size-8 rounded-full bg-[#E11827] flex items-center justify-center text-white text-[11px] font-bold shrink-0 hover:ring-2 hover:ring-[#E11827] transition-all" title={`${user?.name} (${user?.role})`}>
                 {user?.name ? getInitials(user.name) : '?'}
               </div>
             )}
           </Link>
           <button
             onClick={logout}
-            className="p-2 -mr-2 text-muted-foreground hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors"
+            className="p-2 -mr-2 text-muted-foreground hover:text-[#E11827] hover:bg-[#E11827]/10 rounded-md transition-colors"
             title={t('common.signOut')}
           >
             <LogOut className="size-5" />

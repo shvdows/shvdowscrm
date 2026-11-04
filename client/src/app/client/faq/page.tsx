@@ -27,7 +27,7 @@ export default function ClientFAQPage() {
   const mockFaqs: ClientFAQ[] = [
     {
       id: 'mock-f-1',
-      question: locale === 'ar' ? 'ما هو الجدول الزمني للموافقة على المحتوى؟' : "What is Sawaqly's content approval timeline?",
+      question: locale === 'ar' ? 'ما هو الجدول الزمني للموافقة على المحتوى؟' : "What is SHADOWS's content approval timeline?",
       answer: locale === 'ar' ? 'نقوم بإرسال المسودات للأسبوع القادم كل يوم أربعاء. لديك حتى بعد ظهر يوم الجمعة للموافقة عليها أو طلب تعديلات ليتم جدولتها في الوقت المحدد.' : 'We submit drafts for the upcoming week every Wednesday. You have until Friday afternoon to approve them or request edits so that they can be scheduled on time.',
       client_id: '1',
       sort_order: 1,

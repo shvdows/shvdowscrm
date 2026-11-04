@@ -176,7 +176,7 @@ export default function ClientPortalChatPage() {
             <MessageSquare className="size-4.5" />
           </div>
           <div>
-            <h3 className="text-xs font-bold text-[#0F172A] leading-snug">{locale === 'ar' ? 'فريق إدارة سوقلي' : 'Sawaqly Support Team'}</h3>
+            <h3 className="text-xs font-bold text-[#0F172A] leading-snug">{locale === 'ar' ? 'فريق إدارة شادوز' : 'SHADOWS Support Team'}</h3>
             <p className="text-[9px] text-[#64748B] font-mono font-extrabold uppercase tracking-wider mt-0.5">
               {locale === 'ar' ? 'الرد عادة في بضع دقائق' : 'Replies in a few minutes'}
             </p>

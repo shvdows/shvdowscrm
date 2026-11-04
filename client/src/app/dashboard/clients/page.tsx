@@ -869,8 +869,8 @@ export default function ClientsDashboardPage() {
     
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = subTab === 'potential' 
-      ? `sawaqly_leads_${dateStr}.csv` 
-      : `sawaqly_clients_${dateStr}.csv`;
+      ? `shadows_leads_${dateStr}.csv` 
+      : `shadows_clients_${dateStr}.csv`;
       
     link.setAttribute('download', fileName);
     document.body.appendChild(link);
@@ -1098,7 +1098,7 @@ export default function ClientsDashboardPage() {
             <Label htmlFor="c_company">{t('clients.company')}</Label>
             <Input
               id="c_company"
-              placeholder="e.g. Sawaqly Marketing"
+              placeholder="e.g. SHADOWS Media"
               value={clientForm.company}
               onChange={e => setClientForm({ ...clientForm, company: e.target.value })}
             />

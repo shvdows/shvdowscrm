@@ -1,6 +1,6 @@
 export const ar: Record<string, string> = {
   // ── عام ──────────────────────────────────────────────────────────────
-  'common.appName': 'سوقلي CRM',
+  'common.appName': 'شادوز CRM',
   'common.marketingAgency': 'وكالة تسويق',
   'common.signOut': 'تسجيل الخروج',
   'common.cancel': 'إلغاء',
@@ -145,7 +145,7 @@ export const ar: Record<string, string> = {
   'lang.en': 'English',
   'lang.ar': 'العربية',
   'theme.title': 'المظهر',
-  'theme.subtitle': 'تخصيص كيفية ظهور نظام سوّقلي CRM على جهازك',
+  'theme.subtitle': 'تخصيص كيفية ظهور نظام شادوز CRM على جهازك',
   'theme.light': 'فاتح',
   'theme.dark': 'داكن',
   'theme.system': 'النظام',
@@ -391,7 +391,7 @@ export const ar: Record<string, string> = {
   'team.fullName': 'الاسم الكامل',
   'team.fullNamePlaceholder': 'مثال: أحمد محمد',
   'team.emailAddress': 'البريد الإلكتروني',
-  'team.emailPlaceholder': 'مثال: ahmed@sawaqly.com',
+  'team.emailPlaceholder': 'مثال: ahmed@shvdows.com',
   'team.passwordLabel': 'كلمة المرور',
   'team.roleLabel': 'الدور',
   'team.selectRole': 'اختر دورًا',

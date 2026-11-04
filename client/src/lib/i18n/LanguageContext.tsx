@@ -24,7 +24,7 @@ const LanguageContext = createContext<LanguageContextType>({
   t: (key: string) => key,
 });
 
-const STORAGE_KEY = 'sawaqly_lang';
+const STORAGE_KEY = 'shadows_lang';
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en');

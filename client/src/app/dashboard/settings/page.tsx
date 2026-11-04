@@ -25,8 +25,8 @@ export default function SettingsPage() {
   const { t } = useLanguage();
   const { theme, setTheme } = useTheme();
 
-  const [agencyName, setAgencyName] = useState('Sawaqly Marketing Agency');
-  const [supportEmail, setSupportEmail] = useState('support@sawaqly.com');
+  const [agencyName, setAgencyName] = useState('SHADOWS Media & Advertising');
+  const [supportEmail, setSupportEmail] = useState('support@shvdows.com');
   const [defaultDeadlineDays, setDefaultDeadlineDays] = useState(3);
   const [backendHealth, setBackendHealth] = useState<'loading' | 'online' | 'offline'>('loading');
   const [latency, setLatency] = useState<number | null>(null);

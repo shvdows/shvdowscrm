@@ -112,7 +112,7 @@ export default function ClientPortalLayout({ children }: { children: React.React
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] flex flex-col md:flex-row font-sans select-none overflow-hidden" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-slate-50 dark:bg-[#08080A] text-slate-900 dark:text-[#F7F5F5] flex flex-col md:flex-row font-sans select-none overflow-hidden" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       {/* Mobile Header Bar */}
       <header className="md:hidden flex items-center justify-between px-4 h-14 bg-white border-b border-[#E2E8F0] shrink-0 z-30">
         <button
@@ -124,9 +124,9 @@ export default function ClientPortalLayout({ children }: { children: React.React
 
         <div className="flex items-center gap-2">
           <div className="size-6 flex items-center justify-center overflow-hidden shrink-0">
-            <img src="/logo.png" alt="Sawaqly" className="size-full object-contain" />
+            <img src="/brand/owl.png" alt="SHADOWS" className="size-full object-contain filter drop-shadow-[0_0_6px_rgba(225,24,39,0.4)]" />
           </div>
-          <span className="text-sm font-extrabold text-[#1D61E7] tracking-tight lowercase">sawaqly</span>
+          <span className="text-sm font-black text-slate-900 dark:text-white tracking-[0.2em] uppercase">SHADOWS</span>
         </div>
 
         <button
@@ -147,19 +147,19 @@ export default function ClientPortalLayout({ children }: { children: React.React
 
       {/* Left/Right Sidebar based on locale */}
       <aside
-        className={`fixed md:static inset-y-0 z-50 w-60 border-[#E2E8F0] bg-white text-slate-800 flex flex-col justify-between shrink-0 shadow-sm transition-transform duration-200 ${
+        className={`fixed md:static inset-y-0 z-50 w-60 border-[#E2E8F0] dark:border-[#1E1E24] bg-white dark:bg-[#08080A] text-slate-800 dark:text-[#F7F5F5] flex flex-col justify-between shrink-0 shadow-sm transition-transform duration-200 ${
           locale === 'ar' ? 'right-0 border-l' : 'left-0 border-r'
         } ${mobileMenuOpen ? 'translate-x-0' : (locale === 'ar' ? 'translate-x-full md:translate-x-0' : '-translate-x-full md:translate-x-0')}`}
       >
         <div className="flex flex-col">
-          <div className="h-16 px-6 border-b border-[#E2E8F0] flex items-center justify-between gap-2.5">
+          <div className="h-16 px-6 border-b border-[#E2E8F0] dark:border-[#1E1E24] flex items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5">
               <div className="size-8 flex items-center justify-center overflow-hidden shrink-0">
-                <img src="/logo.png" alt="Sawaqly Marketing Agency" className="size-full object-contain" />
+                <img src="/brand/owl.png" alt="SHADOWS" className="size-full object-contain filter drop-shadow-[0_0_8px_rgba(225,24,39,0.4)]" />
               </div>
               <div className="flex flex-col text-start">
-                <span className="text-base font-extrabold text-[#1D61E7] tracking-tight lowercase leading-none">sawaqly</span>
-                <span className="text-[8px] text-[#FFD200] uppercase tracking-widest font-mono mt-0.5 font-bold">{t('portal.marketingAgency')}</span>
+                <span className="text-base font-black text-slate-900 dark:text-white tracking-[0.2em] uppercase leading-none">SHADOWS</span>
+                <span className="text-[8px] text-[#E11827] uppercase tracking-widest font-mono mt-1 font-bold">MEDIA &amp; ADVERTISING</span>
               </div>
             </div>
             <button
@@ -180,16 +180,16 @@ export default function ClientPortalLayout({ children }: { children: React.React
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-2.5 px-4 py-2 transition-all text-[10px] uppercase font-mono tracking-wider font-extrabold relative ${
+                  className={`flex items-center gap-2.5 px-4 py-2.5 transition-all text-[11px] uppercase font-mono tracking-wider font-bold relative rounded-lg ${
                     isActive 
-                      ? 'bg-[#0F172A] text-white rounded-full shadow-xs' 
-                      : 'text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A] rounded-full'
+                      ? 'bg-[#E11827]/10 dark:bg-[#E11827]/15 text-[#910814] dark:text-[#F7F5F5] border-l-2 rtl:border-l-0 rtl:border-r-2 border-[#E11827] shadow-[0_0_15px_rgba(225,24,39,0.2)]' 
+                      : 'text-slate-600 dark:text-[#AFAAAF] hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <Icon className="size-3.5" />
                   <span className="flex-1">{link.label}</span>
                   {link.href === '/client/chat' && hasUnreadChat && (
-                    <span className="absolute right-3 rtl:right-auto rtl:left-3 top-1/2 -translate-y-1/2 size-2.5 rounded-full bg-rose-500 animate-pulse shadow-xs" />
+                    <span className="absolute right-3 rtl:right-auto rtl:left-3 top-1/2 -translate-y-1/2 size-2.5 rounded-full bg-[#E11827] animate-pulse shadow-[0_0_8px_rgba(225,24,39,0.8)]" />
                   )}
                 </Link>
               );
@@ -200,10 +200,10 @@ export default function ClientPortalLayout({ children }: { children: React.React
         {/* Sidebar Footer */}
         <div className="flex flex-col">
           {/* Language Toggle */}
-          <div className="px-4 py-2 border-t border-[#E2E8F0] flex bg-white">
+          <div className="px-4 py-2 border-t border-[#E2E8F0] dark:border-[#1E1E24] flex bg-white dark:bg-[#08080A]">
             <button
               onClick={toggleLocale}
-              className="lang-toggle w-full flex items-center justify-center gap-2 h-9 bg-[#F8FAFC] border border-[#E2E8F0] hover:bg-[#F1F5F9] text-slate-700 rounded-full transition-colors text-xs font-semibold shadow-xs"
+              className="lang-toggle w-full flex items-center justify-center gap-2 h-9 bg-slate-50 dark:bg-[#121216] border border-[#E2E8F0] dark:border-[#1E1E24] hover:bg-slate-100 dark:hover:bg-[#18181F] text-slate-700 dark:text-[#AFAAAF] hover:text-slate-900 dark:hover:text-white rounded-lg transition-colors text-xs font-semibold shadow-xs"
               title={t('lang.switch')}
             >
               <Globe className="size-4 shrink-0" />
@@ -212,8 +212,8 @@ export default function ClientPortalLayout({ children }: { children: React.React
           </div>
 
           {/* User profile and logout */}
-          <div className="p-4 border-t border-[#E2E8F0]">
-            <div className="flex items-center justify-between gap-3 p-3 border border-[#E2E8F0] bg-slate-50 rounded-xl">
+          <div className="p-4 border-t border-[#E2E8F0] dark:border-[#1E1E24] bg-white dark:bg-[#08080A]">
+            <div className="flex items-center justify-between gap-3 p-3 border border-[#E2E8F0] dark:border-[#1E1E24] bg-slate-50 dark:bg-[#121216] rounded-xl">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="size-6 rounded-full bg-slate-200 flex items-center justify-center border border-[#E2E8F0] overflow-hidden shrink-0">
                   {user?.avatar_url ? (
@@ -222,12 +222,12 @@ export default function ClientPortalLayout({ children }: { children: React.React
                     <User className="size-3.5 text-slate-500" />
                   )}
                 </div>
-                <span className="text-[10px] font-bold font-mono text-[#0F172A] truncate uppercase tracking-wider">{user?.name}</span>
+                <span className="text-[10px] font-bold font-mono text-[#0F172A] dark:text-[#F7F5F5] truncate uppercase tracking-wider">{user?.name}</span>
               </div>
 
               <button
                 onClick={logout}
-                className="size-7 flex items-center justify-center border border-[#E2E8F0] bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-lg transition-colors shrink-0"
+                className="size-7 flex items-center justify-center border border-[#E2E8F0] dark:border-[#1E1E24] bg-white dark:bg-[#18181F] hover:bg-rose-50 dark:hover:bg-[#E11827]/20 text-slate-500 dark:text-[#AFAAAF] hover:text-[#E11827] rounded-lg transition-colors shrink-0"
                 title={t('portal.signOut')}
               >
                 <LogOut className="size-3.5" />
