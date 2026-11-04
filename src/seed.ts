@@ -3,9 +3,9 @@ import { supabaseAdmin } from './lib/supabase';
 async function seed() {
   console.log('🌱 Starting database seeding...');
 
-  const adminEmail = 'admin@sawaqly.com';
-  const adminPassword = 'Admin@1234';
-  const adminName = 'Sawaqly Admin';
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@shvdows.com';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@1234';
+  const adminName = process.env.ADMIN_NAME || 'Shvdows Admin';
 
   try {
     // 1. Check if user exists in auth.users by email
