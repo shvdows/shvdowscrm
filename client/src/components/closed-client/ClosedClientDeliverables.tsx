@@ -29,7 +29,7 @@ export default function ClosedClientDeliverables({ client, onRefresh }: ClosedCl
   const { user } = useAuth();
   const { t, locale } = useLanguage();
 
-  const isAdmin = user && ['owner', 'team_leader', 'account_manager', 'content_creator'].includes(user.role);
+  const isAdmin = user && ['owner', 'team_leader', 'account_manager', 'content_creator', 'hr'].includes(user.role);
 
   // States
   const [submitting, setSubmitting] = useState(false);

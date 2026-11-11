@@ -169,7 +169,7 @@ export default function MemberTasksPage({ params }: { params: Promise<{ memberId
   };
 
   useEffect(() => {
-    if (user && user.role !== 'owner' && user.role !== 'team_leader' && user.role !== 'account_manager') {
+    if (user && user.role !== 'owner' && user.role !== 'team_leader' && user.role !== 'account_manager' && user.role !== 'hr') {
       router.replace('/dashboard');
       return;
     }
@@ -217,7 +217,7 @@ export default function MemberTasksPage({ params }: { params: Promise<{ memberId
     }
   }, [targetMonth, memberId, member]);
 
-  if (!user || (user.role !== 'owner' && user.role !== 'team_leader' && user.role !== 'account_manager')) return null;
+  if (!user || (user.role !== 'owner' && user.role !== 'team_leader' && user.role !== 'account_manager' && user.role !== 'hr')) return null;
 
   const targetVal = targetTasks === '' ? 0 : Number(targetTasks);
   const achievementRate = targetVal > 0 ? Math.round((completedTasks / targetVal) * 100) : 0;
@@ -362,7 +362,7 @@ export default function MemberTasksPage({ params }: { params: Promise<{ memberId
         <ProfileOverviewTab
           member={member}
           onMemberUpdated={setMember}
-          canEdit={user.role === 'owner' || (user.role === 'team_leader' && member.role !== 'owner')}
+          canEdit={user.role === 'owner' || ((user.role === 'team_leader' || user.role === 'hr') && member.role !== 'owner')}
           tasks={tasks}
           clients={clients}
         />
@@ -373,7 +373,7 @@ export default function MemberTasksPage({ params }: { params: Promise<{ memberId
         <ProfileFinancialsTab
           member={member}
           currentUser={user}
-          canManage={user.role === 'owner' || user.role === 'team_leader' || user.role === 'account_manager'}
+          canManage={user.role === 'owner' || user.role === 'team_leader' || user.role === 'account_manager' || user.role === 'hr'}
         />
       )}
 

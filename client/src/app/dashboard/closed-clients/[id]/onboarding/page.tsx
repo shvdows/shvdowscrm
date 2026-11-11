@@ -38,7 +38,7 @@ export default function ClosedClientOnboardingPage({ params }: PageProps) {
 
   // Navigation Guard
   useEffect(() => {
-    if (user && !['owner', 'team_leader', 'sales', 'account_manager', 'moderation', 'content_creator'].includes(user.role)) {
+    if (user && !['owner', 'team_leader', 'sales', 'account_manager', 'moderation', 'content_creator', 'hr'].includes(user.role)) {
       router.replace('/dashboard/closed-clients');
     }
   }, [user, router]);

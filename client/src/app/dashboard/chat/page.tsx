@@ -169,12 +169,16 @@ export default function GlobalChatPage() {
                 const userRole = msg.user?.role || 'member';
 
                 // Assign roles clean colors
-                let roleColor = 'bg-slate-100 text-slate-700 border-slate-200';
-                if (userRole === 'owner') roleColor = 'bg-rose-100 text-rose-700 border-rose-200';
-                else if (userRole === 'team_leader') roleColor = 'bg-blue-100 text-blue-700 border-blue-200';
-                else if (userRole === 'moderation') roleColor = 'bg-amber-100 text-amber-700 border-amber-200';
-                else if (userRole === 'account_manager') roleColor = 'bg-purple-100 text-purple-700 border-purple-200';
-                else if (userRole === 'sales') roleColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+                let roleColor = 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700';
+                if (userRole === 'owner') roleColor = 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800';
+                else if (userRole === 'team_leader') roleColor = 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800';
+                else if (userRole === 'hr') roleColor = 'bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800';
+                else if (userRole === 'moderation') roleColor = 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800';
+                else if (userRole === 'account_manager') roleColor = 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800';
+                else if (userRole === 'sales') roleColor = 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800';
+                else if (userRole === 'videographer' || userRole === 'reel_maker') roleColor = 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800';
+                else if (userRole === 'model') roleColor = 'bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-800';
+                else if (userRole === 'lighting_designer') roleColor = 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-950/40 dark:text-yellow-300 dark:border-yellow-800';
 
                 return (
                   <div

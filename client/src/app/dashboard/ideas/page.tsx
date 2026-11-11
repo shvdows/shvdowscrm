@@ -75,12 +75,12 @@ export default function IdeasPage() {
 
   // Redirect unauthorized users
   useEffect(() => {
-    if (user && user.role !== 'owner' && user.role !== 'team_leader' && user.role !== 'moderation' && user.role !== 'account_manager' && user.role !== 'content_creator' && user.role !== 'content_creator_intern') {
+    if (user && user.role !== 'owner' && user.role !== 'team_leader' && user.role !== 'moderation' && user.role !== 'account_manager' && user.role !== 'content_creator' && user.role !== 'content_creator_intern' && user.role !== 'hr') {
       router.replace('/dashboard');
     }
   }, [user, router]);
 
-  const canPushToTask = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager' || user?.role === 'sales';
+  const canPushToTask = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager' || user?.role === 'sales' || user?.role === 'hr';
 
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
   const [loading, setLoading] = useState(true);

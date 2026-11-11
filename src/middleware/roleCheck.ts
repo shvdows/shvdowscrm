@@ -18,7 +18,7 @@ export const ownerOrTeamLeader = (
   res: Response,
   next: NextFunction
 ): void => {
-  if (!req.user || !['owner', 'team_leader', 'moderation', 'account_manager'].includes(req.user.role)) {
+  if (!req.user || !['owner', 'team_leader', 'moderation', 'account_manager', 'hr'].includes(req.user.role)) {
     res.status(403).json({ error: 'Access denied. Authorized roles only.' });
     return;
   }
@@ -30,8 +30,8 @@ export const ownerOrTeamLeaderOnly = (
   res: Response,
   next: NextFunction
 ): void => {
-  if (!req.user || !['owner', 'team_leader'].includes(req.user.role)) {
-    res.status(403).json({ error: 'Access denied. Owner or Team Leader only.' });
+  if (!req.user || !['owner', 'team_leader', 'hr'].includes(req.user.role)) {
+    res.status(403).json({ error: 'Access denied. Owner, Team Leader or HR only.' });
     return;
   }
   next();
@@ -54,7 +54,7 @@ export const ownerOrSalesOrTeamLeaderOrAccountManager = (
   res: Response,
   next: NextFunction
 ): void => {
-  if (!req.user || !['owner', 'sales', 'team_leader', 'account_manager', 'moderation'].includes(req.user.role)) {
+  if (!req.user || !['owner', 'sales', 'team_leader', 'account_manager', 'moderation', 'hr'].includes(req.user.role)) {
     res.status(403).json({ error: 'Access denied. Authorized roles only.' });
     return;
   }
@@ -66,7 +66,7 @@ export const ownerOrTeamLeaderOrSales = (
   res: Response,
   next: NextFunction
 ): void => {
-  if (!req.user || !['owner', 'team_leader', 'sales', 'moderation', 'account_manager'].includes(req.user.role)) {
+  if (!req.user || !['owner', 'team_leader', 'sales', 'moderation', 'account_manager', 'hr'].includes(req.user.role)) {
     res.status(403).json({ error: 'Access denied. Authorized roles only.' });
     return;
   }
@@ -78,7 +78,7 @@ export const ownerOrTeamLeaderOrSalesOrContentCreator = (
   res: Response,
   next: NextFunction
 ): void => {
-  if (!req.user || !['owner', 'team_leader', 'sales', 'moderation', 'account_manager', 'content_creator'].includes(req.user.role)) {
+  if (!req.user || !['owner', 'team_leader', 'sales', 'moderation', 'account_manager', 'content_creator', 'hr'].includes(req.user.role)) {
     res.status(403).json({ error: 'Access denied. Authorized roles only.' });
     return;
   }
@@ -90,7 +90,7 @@ export const ownerOrTeamLeaderOrContentCreator = (
   res: Response,
   next: NextFunction
 ): void => {
-  if (!req.user || !['owner', 'team_leader', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern'].includes(req.user.role)) {
+  if (!req.user || !['owner', 'team_leader', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'].includes(req.user.role)) {
     res.status(403).json({ error: 'Access denied. Authorized roles only.' });
     return;
   }

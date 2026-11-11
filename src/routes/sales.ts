@@ -7,7 +7,7 @@ const router = Router();
 
 // GET /api/sales/dashboard — Fetch personal sales stats, targets, call logs, phone list, historical deals
 router.get('/dashboard', authMiddleware, ownerOrSales, async (req: AuthRequest, res: Response): Promise<void> => {
-  const isOwner = req.user!.role === 'owner' || req.user!.role === 'team_leader';
+  const isOwner = req.user!.role === 'owner' || req.user!.role === 'team_leader' || req.user!.role === 'hr';
   let userId = req.user!.id;
   const filterUserId = req.query.userId && typeof req.query.userId === 'string' ? req.query.userId : null;
 
@@ -535,7 +535,7 @@ router.post('/leads/:leadId/close-won', authMiddleware, ownerOrSales, async (req
 // GET /api/sales/calendar-events — Fetch meetings, call logs, contracts for Sales Calendar
 router.get('/calendar-events', authMiddleware, ownerOrSales, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const isOwner = req.user!.role === 'owner' || req.user!.role === 'team_leader';
+    const isOwner = req.user!.role === 'owner' || req.user!.role === 'team_leader' || req.user!.role === 'hr';
     let targetUserId = req.user!.id;
     if (isOwner && req.query.userId && typeof req.query.userId === 'string' && req.query.userId !== 'all') {
       targetUserId = req.query.userId;
@@ -588,7 +588,7 @@ router.get('/calendar-events', authMiddleware, ownerOrSales, async (req: AuthReq
       const { data: reps } = await supabaseAdmin
         .from('profiles')
         .select('id, name, email, role, avatar_url')
-        .in('role', ['sales', 'owner', 'team_leader']);
+        .in('role', ['sales', 'owner', 'team_leader', 'hr']);
       salesReps = reps || [];
     }
 

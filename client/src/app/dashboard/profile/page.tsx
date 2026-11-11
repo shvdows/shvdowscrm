@@ -230,7 +230,7 @@ export default function MyProfilePage() {
             <ProfileFinancialsTab
               member={user}
               currentUser={user}
-              canManage={user.role === 'owner' || user.role === 'team_leader' || user.role === 'account_manager'}
+              canManage={user.role === 'owner' || user.role === 'team_leader' || user.role === 'account_manager' || user.role === 'hr'}
             />
           )}
 

@@ -83,8 +83,8 @@ export default function TaskCard({ task, onTaskUpdated, onTaskDeleted }: TaskCar
   const hasRevisionRequested = assignees.some(a => a.status === 'revision');
   const isMyRevisionNeeded = myAssignment?.status === 'revision';
 
-  // canAdminister checks: owner, team_leader, moderation, account_manager
-  const isOwner = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager';
+  // canAdminister checks: owner, team_leader, moderation, account_manager, hr
+  const isOwner = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager' || user?.role === 'hr';
 
   // Determine logged time text (only for members, hidden on cards for managers/team leaders)
   let loggedTimeText = '';

@@ -13,7 +13,7 @@ const upload = multer({
 
 // GET /api/users — List all team members (owner, team leader, sales, moderation, account_manager, content_creator)
 router.get('/', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
-  if (!req.user || !['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'].includes(req.user.role)) {
+  if (!req.user || !['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'].includes(req.user.role)) {
     res.status(403).json({ error: 'Access denied.' });
     return;
   }
@@ -416,17 +416,17 @@ router.post('/', authMiddleware, ownerOrTeamLeaderOnly, async (req: AuthRequest,
     return;
   }
 
-  // Prevent team leaders from creating an owner account
-  if (req.user?.role === 'team_leader' && role === 'owner') {
-    res.status(403).json({ error: 'Team leaders cannot create owner accounts' });
+  // Prevent team leaders and HR from creating an owner account
+  if ((req.user?.role === 'team_leader' || req.user?.role === 'hr') && role === 'owner') {
+    res.status(403).json({ error: 'Team leaders and HR cannot create owner accounts' });
     return;
   }
 
-  const validRoles = ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'client', 'content_creator', 'content_creator_intern', 'hr'];
+  const validRoles = ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'client', 'content_creator', 'content_creator_intern', 'hr'];
   const userRole = validRoles.includes(role) ? role : 'member';
 
-  if (req.user?.role === 'team_leader' && userRole === 'owner') {
-    res.status(403).json({ error: 'Team leaders cannot create owner accounts' });
+  if ((req.user?.role === 'team_leader' || req.user?.role === 'hr') && userRole === 'owner') {
+    res.status(403).json({ error: 'Team leaders and HR cannot create owner accounts' });
     return;
   }
 
@@ -524,7 +524,7 @@ router.put('/:id', authMiddleware, ownerOrTeamLeaderOnly, async (req: AuthReques
     // 2. Update profiles table
     const updates: Record<string, string> = {};
     if (name) updates.name = name;
-    if (role && ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'client', 'content_creator', 'content_creator_intern', 'hr'].includes(role)) updates.role = role;
+    if (role && ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'client', 'content_creator', 'content_creator_intern', 'hr'].includes(role)) updates.role = role;
     if (email) updates.email = email;
     if (phone !== undefined) updates.phone = phone || null;
     if (emergency_contact_name !== undefined) updates.emergency_contact_name = emergency_contact_name || null;
@@ -570,7 +570,7 @@ router.put('/:id', authMiddleware, ownerOrTeamLeaderOnly, async (req: AuthReques
 // GET /api/users/:id — Get a team member's full profile
 router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const isManager = req.user?.role === 'owner' || req.user?.role === 'team_leader';
+  const isManager = req.user?.role === 'owner' || req.user?.role === 'team_leader' || req.user?.role === 'hr';
 
   if (!isManager && id !== req.user?.id) {
     res.status(403).json({ error: 'Access denied.' });
@@ -619,7 +619,7 @@ router.delete('/:id', authMiddleware, ownerOrTeamLeaderOnly, async (req: AuthReq
       }
 
       if (targetProfile.role === 'owner') {
-        res.status(403).json({ error: 'Team leaders cannot delete owner accounts' });
+        res.status(403).json({ error: 'Team leaders and HR cannot delete owner accounts' });
         return;
       }
     }

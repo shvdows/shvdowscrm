@@ -78,15 +78,17 @@ export default function FinanceDashboardPage() {
   const router = useRouter();
   const { t, locale } = useLanguage();
 
+  const isLeaderOrHR = user?.role === 'team_leader' || user?.role === 'hr';
+
   // Navigation Guard
   useEffect(() => {
-    if (user && user.role !== 'owner' && user.role !== 'team_leader') {
+    if (user && user.role !== 'owner' && !isLeaderOrHR) {
       router.replace('/dashboard');
-    } else if (user && user.role === 'team_leader') {
+    } else if (user && isLeaderOrHR) {
       setActiveTab('expenses');
       setExpensesSubTab('salaries');
     }
-  }, [user, router]);
+  }, [user, router, isLeaderOrHR]);
 
   // States
   const [stats, setStats] = useState<FinanceStats | null>(null);
@@ -339,14 +341,14 @@ export default function FinanceDashboardPage() {
 
   const loadExpensesAndSalaries = async (monthStr: string) => {
     try {
-      if (user?.role !== 'team_leader') {
+      if (!isLeaderOrHR) {
         const expRes = await expensesApi.list({ month: monthStr });
         setExpenses(expRes.expenses || []);
       } else {
         setExpenses([]);
       }
 
-      if (user?.role === 'owner' || user?.role === 'team_leader') {
+      if (user?.role === 'owner' || isLeaderOrHR) {
         try {
           const salRes = await salariesApi.list({ month: monthStr });
           setSalaries(salRes.salaries || []);
@@ -362,7 +364,7 @@ export default function FinanceDashboardPage() {
   };
 
   const loadAnalytics = async () => {
-    if (user?.role === 'team_leader') return;
+    if (isLeaderOrHR) return;
     try {
       setAnalyticsLoading(true);
       const res = await financeAnalyticsApi.getDashboard();
@@ -378,7 +380,7 @@ export default function FinanceDashboardPage() {
   const loadData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      if (user?.role === 'team_leader') {
+      if (isLeaderOrHR) {
         const usersRes = await usersApi.list().catch(() => ({ users: [] }));
         setUsersList(usersRes.users || []);
       } else {
@@ -398,7 +400,7 @@ export default function FinanceDashboardPage() {
       
       await loadExpensesAndSalaries(expenseMonthFilter);
 
-      if (activeTab === 'analytics' && user?.role !== 'team_leader') {
+      if (activeTab === 'analytics' && !isLeaderOrHR) {
         await loadAnalytics();
       }
     } catch (err) {
@@ -437,10 +439,10 @@ export default function FinanceDashboardPage() {
   }, [activeTab, reportStartDate, reportEndDate]);
 
   useEffect(() => {
-    if ((user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'sales') && activeTab === 'expenses') {
+    if ((user?.role === 'owner' || isLeaderOrHR || user?.role === 'sales') && activeTab === 'expenses') {
       loadExpensesAndSalaries(expenseMonthFilter);
     }
-  }, [user, activeTab, expenseMonthFilter]);
+  }, [user, activeTab, expenseMonthFilter, isLeaderOrHR]);
 
   useEffect(() => {
     if (activeTab === 'analytics') {
@@ -449,10 +451,10 @@ export default function FinanceDashboardPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'sales') {
+    if (user?.role === 'owner' || isLeaderOrHR || user?.role === 'sales') {
       loadData();
     }
-  }, [user]);
+  }, [user, isLeaderOrHR]);
 
   const getCategoryLabel = (cat: string) => {
     switch (cat) {
@@ -1008,12 +1010,12 @@ export default function FinanceDashboardPage() {
   };
 
   useEffect(() => {
-    if (user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'sales') {
+    if (user?.role === 'owner' || isLeaderOrHR || user?.role === 'sales') {
       loadData();
     }
-  }, [user]);
+  }, [user, isLeaderOrHR]);
 
-  if (user?.role !== 'owner' && user?.role !== 'team_leader' && user?.role !== 'sales') return null;
+  if (user?.role !== 'owner' && !isLeaderOrHR && user?.role !== 'sales') return null;
 
   const resetProjectForm = (project?: Project) => {
     if (project) {
@@ -2349,13 +2351,13 @@ export default function FinanceDashboardPage() {
       {/* ── Page Header ── */}
       <div className="page-header">
         <div className="page-header-left">
-          <h1 className="page-header-title">{user?.role === 'team_leader' ? '👤 ' + t('finance.salariesTab') : t('finance.title')}</h1>
-          <p className="page-header-subtitle">{user?.role === 'team_leader' ? (locale === 'ar' ? 'إدارة رواتب ومستحقات الفريق' : 'Manage team member salaries, bonuses, penalties, and advances') : t('finance.subtitle')}</p>
+          <h1 className="page-header-title">{isLeaderOrHR ? '👤 ' + t('finance.salariesTab') : t('finance.title')}</h1>
+          <p className="page-header-subtitle">{isLeaderOrHR ? (locale === 'ar' ? 'إدارة رواتب ومستحقات الفريق' : 'Manage team member salaries, bonuses, penalties, and advances') : t('finance.subtitle')}</p>
         </div>
       </div>
 
       {/* ── Stats Metric Cards Grid ── */}
-      {stats && user?.role !== 'team_leader' && (
+      {stats && !isLeaderOrHR && (
         <div className="stats-grid">
           {/* Card 1: Active Clients */}
           <div
@@ -2458,7 +2460,7 @@ export default function FinanceDashboardPage() {
       )}
 
       {/* ── Sub-Tab Navigation Switcher (Responsive) ── */}
-      {user?.role !== 'team_leader' && (
+      {!isLeaderOrHR && (
         <>
           {/* Mobile Tab Select Dropdown */}
           <div className="block md:hidden mb-6 p-4 rounded-xl border border-border bg-card shadow-xs">
@@ -3000,7 +3002,7 @@ export default function FinanceDashboardPage() {
       {activeTab === 'expenses' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Sub Tab selection */}
-          {user?.role !== 'team_leader' && (
+          {!isLeaderOrHR && (
             <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', gap: 16 }}>
               {[
                 { id: 'expenses', label: '💸 ' + t('finance.expensesTab') },
@@ -4462,7 +4464,7 @@ export default function FinanceDashboardPage() {
           >
             ✏️ {t('common.edit')}
           </button>
-          {(user?.role === 'owner' || user?.role === 'team_leader') && (
+          {(user?.role === 'owner' || isLeaderOrHR) && (
             <>
               <button
                 type="button"

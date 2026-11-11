@@ -37,7 +37,7 @@ function getCairoDateString(date: Date = new Date()): string {
 
 // Helper: check if user is admin/TL
 function isTaskAdmin(role: string): boolean {
-  return role === 'owner' || role === 'team_leader' || role === 'moderation' || role === 'account_manager';
+  return role === 'owner' || role === 'team_leader' || role === 'moderation' || role === 'account_manager' || role === 'hr';
 }
 
 // Helper: check if user is allowed to administer/review a specific task
@@ -129,7 +129,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response): Promise
 
         .order('created_at', { ascending: false });
 
-      if (archived === 'all' && (userRole === 'owner' || userRole === 'team_leader' || userRole === 'account_manager')) {
+      if (archived === 'all' && (userRole === 'owner' || userRole === 'team_leader' || userRole === 'account_manager' || userRole === 'hr')) {
         // Return ALL tasks (both active and archived)
       } else {
         query = query.eq('is_archived', showArchived);

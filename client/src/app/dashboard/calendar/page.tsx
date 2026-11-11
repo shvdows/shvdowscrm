@@ -129,7 +129,7 @@ export default function CalendarPage() {
   };
 
   const isOwner = user?.role === 'owner' || user?.role === 'sales';
-  const isTaskAdmin = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager';
+  const isTaskAdmin = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager' || user?.role === 'hr';
 
   const isTaskCompleted = (tTask: Task) => {
     const assignees = tTask.task_assignees || [];
@@ -155,7 +155,7 @@ export default function CalendarPage() {
     if (!user) return;
     setLoading(true);
 
-    const isExecutionMember = ['developer', 'member', 'graphic_designer', 'video_editor', 'reel_maker', 'hr'].includes(user.role);
+    const isExecutionMember = ['developer', 'member', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer'].includes(user.role);
 
     const fetchTasks = tasksApi.list();
     const fetchContracts = (user.role === 'owner' || user.role === 'sales')

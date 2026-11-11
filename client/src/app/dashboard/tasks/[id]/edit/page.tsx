@@ -78,7 +78,7 @@ export default function EditTaskPage({ params }: { params: Promise<{ id: string 
   const [taskCreatedAt, setTaskCreatedAt] = useState<string>('');
 
   useEffect(() => {
-    const allowedRoles = ['owner', 'team_leader', 'moderation', 'account_manager', 'content_creator'];
+    const allowedRoles = ['owner', 'team_leader', 'moderation', 'account_manager', 'content_creator', 'hr'];
     if (!allowedRoles.includes(user?.role || '')) {
       router.replace('/dashboard');
       return;
@@ -94,7 +94,7 @@ export default function EditTaskPage({ params }: { params: Promise<{ id: string 
       const myA = tData.task_assignees?.find((a: any) => a.user_id === user?.id);
 
       const isOwnerRole = user?.role === 'owner';
-      const isOtherAdminRole = user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager';
+      const isOtherAdminRole = user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager' || user?.role === 'hr';
       const isCreator = tData.creator_id === user?.id;
       const hasInternAssignee = tData.task_assignees?.some((a: any) => a.user?.role === 'content_creator_intern');
       const isAssigned = !!myA;

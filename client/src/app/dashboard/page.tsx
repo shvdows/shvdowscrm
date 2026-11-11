@@ -46,19 +46,23 @@ export default function DashboardPage() {
   
   const isOwner = user?.role === 'owner';
   const isTeamLeader = user?.role === 'team_leader';
+  const isHR = user?.role === 'hr';
+  const isLeaderOrHR = isTeamLeader || isHR;
   const isSales = user?.role === 'sales';
   const isDeveloper = user?.role === 'developer';
   const isGraphicDesigner = user?.role === 'graphic_designer';
   const isVideoEditor = user?.role === 'video_editor';
-  const isReelMaker = user?.role === 'reel_maker';
-  const isMember = user?.role === 'member' || isDeveloper || isGraphicDesigner || isVideoEditor || isReelMaker || user?.role === 'hr';
+  const isVideographer = user?.role === 'videographer' || user?.role === 'reel_maker';
+  const isModel = user?.role === 'model';
+  const isLightingDesigner = user?.role === 'lighting_designer';
+  const isMember = user?.role === 'member' || isDeveloper || isGraphicDesigner || isVideoEditor || isVideographer || isModel || isLightingDesigner;
   const isModerator = user?.role === 'moderation';
   const isAccountManager = user?.role === 'account_manager';
   const isContentCreator = user?.role === 'content_creator' || user?.role === 'content_creator_intern';
 
   const showFinanceAndClients = isOwner || isSales;
-  const showTasks = isOwner || isTeamLeader || isMember || isModerator || isAccountManager || isContentCreator;
-  const isTaskAdmin = isOwner || isTeamLeader || isModerator || isAccountManager;
+  const showTasks = isOwner || isLeaderOrHR || isMember || isModerator || isAccountManager || isContentCreator;
+  const isTaskAdmin = isOwner || isLeaderOrHR || isModerator || isAccountManager;
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [allTasks, setAllTasks] = useState<Task[]>([]);

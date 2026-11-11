@@ -415,7 +415,7 @@ export default function DailyReportsView() {
                         logs.map((log) => {
                           const { timeStr, dateStr } = formatLogDateTime(log.created_at);
                           const canDelete =
-                            ['owner', 'team_leader'].includes(user?.role || '') ||
+                            ['owner', 'team_leader', 'hr'].includes(user?.role || '') ||
                             user?.id === log.author_id;
 
                           return (

@@ -30,8 +30,8 @@ export default function ReportsHubPage() {
     );
   }
 
-  // Role Protection: owner, team_leader, and account_manager only
-  const isAuthorized = user && ['owner', 'team_leader', 'account_manager'].includes(user.role);
+  // Role Protection: owner, team_leader, account_manager, and hr
+  const isAuthorized = user && ['owner', 'team_leader', 'account_manager', 'hr'].includes(user.role);
 
   if (!isAuthorized) {
     return (

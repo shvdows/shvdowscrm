@@ -7,7 +7,7 @@ const router = Router();
 // Staff role restriction helper
 const staffOnly = (req: AuthRequest, res: Response, next: any) => {
   const role = req.user!.role;
-  if (!['owner', 'team_leader', 'account_manager', 'moderation'].includes(role)) {
+  if (!['owner', 'team_leader', 'account_manager', 'moderation', 'hr'].includes(role)) {
     res.status(403).json({ error: 'Access denied. Staff only.' });
     return;
   }
@@ -82,7 +82,7 @@ router.get('/rooms/:client_id/messages', authMiddleware, async (req: AuthRequest
         res.status(403).json({ error: 'Access denied. You can only view your own chat room.' });
         return;
       }
-    } else if (!['owner', 'team_leader', 'account_manager', 'moderation'].includes(role)) {
+    } else if (!['owner', 'team_leader', 'account_manager', 'moderation', 'hr'].includes(role)) {
       res.status(403).json({ error: 'Access denied. Unauthorized role.' });
       return;
     }
@@ -131,7 +131,7 @@ router.post('/rooms/:client_id/messages', authMiddleware, async (req: AuthReques
         res.status(403).json({ error: 'Access denied. You can only send messages to your own chat room.' });
         return;
       }
-    } else if (!['owner', 'team_leader', 'account_manager', 'moderation'].includes(role)) {
+    } else if (!['owner', 'team_leader', 'account_manager', 'moderation', 'hr'].includes(role)) {
       res.status(403).json({ error: 'Access denied. Unauthorized role.' });
       return;
     }

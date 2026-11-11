@@ -226,7 +226,7 @@ export default function ClientPortalChatPage() {
                       <span className="text-[10px] font-bold text-slate-800">{msg.sender.name}</span>
                       {!isClientSender && (
                         <Badge variant="outline" className="text-[8px] px-1.5 py-0 bg-slate-100 text-slate-700 capitalize font-semibold border-slate-200">
-                          {msg.sender.role === 'owner' ? 'Admin' : msg.sender.role === 'team_leader' ? 'Leader' : 'Account Manager'}
+                          {msg.sender.role === 'owner' ? 'Admin' : msg.sender.role === 'team_leader' ? 'Leader' : msg.sender.role === 'hr' ? 'HR' : 'Account Manager'}
                         </Badge>
                       )}
                     </div>

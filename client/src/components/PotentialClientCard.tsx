@@ -76,7 +76,7 @@ export default function PotentialClientCard({
   onUpdate,
 }: PotentialClientCardProps) {
   const { user } = useAuth();
-  const isAdmin = !!(user && ['owner', 'team_leader', 'account_manager'].includes(user.role));
+  const isAdmin = !!(user && ['owner', 'team_leader', 'account_manager', 'hr'].includes(user.role));
 
   const [logs, setLogs] = useState<SalesCallLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);

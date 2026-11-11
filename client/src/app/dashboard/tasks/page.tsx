@@ -43,8 +43,8 @@ export default function TasksPage() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  const isOwner = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager';
-  const canSeeAllTasksTab = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'account_manager';
+  const isOwner = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'moderation' || user?.role === 'account_manager' || user?.role === 'hr';
+  const canSeeAllTasksTab = user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'account_manager' || user?.role === 'hr';
   const canCreate = isOwner || user?.role === 'content_creator';
 
   useEffect(() => {

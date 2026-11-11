@@ -73,8 +73,8 @@ export default function TeamPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    // Redirect if not owner or team_leader
-    if (user && user.role !== 'owner' && user.role !== 'team_leader') {
+    // Redirect if not owner, team_leader, or hr
+    if (user && user.role !== 'owner' && user.role !== 'team_leader' && user.role !== 'hr') {
       router.replace('/dashboard');
       return;
     }
@@ -635,7 +635,7 @@ export default function TeamPage() {
     );
   };
 
-  if (!user || (user.role !== 'owner' && user.role !== 'team_leader')) return null;
+  if (!user || (user.role !== 'owner' && user.role !== 'team_leader' && user.role !== 'hr')) return null;
 
   return (
     <div className="page-container fade-in">
@@ -645,7 +645,7 @@ export default function TeamPage() {
           <h1 className="page-header-title">{t('team.title')}</h1>
           <p className="page-header-subtitle">{t('team.subtitle')}</p>
         </div>
-        {(user.role === 'owner' || user.role === 'team_leader') && activeTab === 'directory' && (
+        {(user.role === 'owner' || user.role === 'team_leader' || user.role === 'hr') && activeTab === 'directory' && (
           <Button onClick={() => { resetForm(); setIsCreateOpen(true); }} className="gap-1.5">
             <Plus className="size-4" /> {t('team.addMember')}
           </Button>
@@ -811,7 +811,10 @@ export default function TeamPage() {
                          member.role === 'content_creator_intern' ? (t('role.content_creator_intern') || 'Content Creator Intern') :
                          member.role === 'graphic_designer' ? (t('role.graphic_designer') || 'Graphic Designer') :
                          member.role === 'video_editor' ? (t('role.video_editor') || 'Video Editor') :
-                         member.role === 'reel_maker' ? (t('role.reel_maker') || 'Reel Maker') :
+                         member.role === 'videographer' ? (t('role.videographer') || 'Videographer') :
+                         member.role === 'reel_maker' ? (t('role.videographer') || 'Videographer') :
+                         member.role === 'model' ? (t('role.model') || 'Model') :
+                         member.role === 'lighting_designer' ? (t('role.lighting_designer') || 'Lighting Designer') :
                          member.role === 'client' ? t('role.client') :
                          t('role.member')}
                       </Badge>
@@ -840,7 +843,7 @@ export default function TeamPage() {
                         <ExternalLink className="size-3" /> {t('profile.viewFullProfile')}
                       </Button>
                     )}
-                    {(user?.role === 'owner' || (user?.role === 'team_leader' && member.role !== 'owner')) && (
+                    {(user?.role === 'owner' || ((user?.role === 'team_leader' || user?.role === 'hr') && member.role !== 'owner')) && (
                       <>
                         <Button
                           variant="secondary"
@@ -950,7 +953,9 @@ export default function TeamPage() {
                 <SelectItem value="member">{t('role.teamMember')}</SelectItem>
                 <SelectItem value="graphic_designer">{t('role.graphic_designer') || 'Graphic Designer'}</SelectItem>
                 <SelectItem value="video_editor">{t('role.video_editor') || 'Video Editor'}</SelectItem>
-                <SelectItem value="reel_maker">{t('role.reel_maker') || 'Reel Maker'}</SelectItem>
+                <SelectItem value="videographer">{t('role.videographer') || 'Videographer'}</SelectItem>
+                <SelectItem value="model">{t('role.model') || 'Model'}</SelectItem>
+                <SelectItem value="lighting_designer">{t('role.lighting_designer') || 'Lighting Designer'}</SelectItem>
                 <SelectItem value="team_leader">{t('role.team_leader')}</SelectItem>
                 <SelectItem value="sales">{t('role.sales')}</SelectItem>
                 <SelectItem value="moderation">{t('role.moderation')}</SelectItem>
@@ -1038,7 +1043,9 @@ export default function TeamPage() {
                 <SelectItem value="member">{t('role.teamMember')}</SelectItem>
                 <SelectItem value="graphic_designer">{t('role.graphic_designer') || 'Graphic Designer'}</SelectItem>
                 <SelectItem value="video_editor">{t('role.video_editor') || 'Video Editor'}</SelectItem>
-                <SelectItem value="reel_maker">{t('role.reel_maker') || 'Reel Maker'}</SelectItem>
+                <SelectItem value="videographer">{t('role.videographer') || 'Videographer'}</SelectItem>
+                <SelectItem value="model">{t('role.model') || 'Model'}</SelectItem>
+                <SelectItem value="lighting_designer">{t('role.lighting_designer') || 'Lighting Designer'}</SelectItem>
                 <SelectItem value="team_leader">{t('role.team_leader')}</SelectItem>
                 <SelectItem value="sales">{t('role.sales')}</SelectItem>
                 <SelectItem value="moderation">{t('role.moderation')}</SelectItem>

@@ -48,26 +48,26 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/dashboard',          labelKey: 'nav.dashboard',     icon: LayoutDashboard, allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
-  { href: '/dashboard/tasks',    labelKey: 'nav.allTasks',      icon: CheckSquare,     allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
-  { href: '/dashboard/content',  labelKey: 'nav.content',       icon: Film,            allowedRoles: ['owner', 'team_leader', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern'] },
-  { href: '/dashboard/reminders', labelKey: 'nav.reminders',     icon: StickyNote,      allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
-  { href: '/dashboard/chat',     labelKey: 'nav.globalChat',    icon: MessageSquare,   allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
-  { href: '/dashboard/client-chat', labelKey: 'nav.clientChat',  icon: MessageSquare,   allowedRoles: ['owner', 'team_leader', 'account_manager'] },
-  { href: '/dashboard/team',     labelKey: 'nav.team',          icon: Users,           allowedRoles: ['owner', 'team_leader'] },
-  { href: '/dashboard/finance',  labelKey: 'nav.finance',       icon: Briefcase,       allowedRoles: ['owner', 'team_leader'] },
-  { href: '/dashboard/my-salary', labelKey: 'nav.mySalary',     icon: Wallet,          allowedRoles: ['team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
-  { href: '/dashboard/clients',  labelKey: 'nav.clients',       icon: Users,           allowedRoles: ['owner', 'team_leader'] },
-  { href: '/dashboard/closed-clients', labelKey: 'nav.closedClients', icon: Archive, allowedRoles: ['owner', 'team_leader', 'account_manager', 'moderation', 'content_creator'] },
-  { href: '/dashboard/reports',  labelKey: 'nav.reportsHub',    icon: FileBarChart,    allowedRoles: ['owner', 'team_leader', 'account_manager'] },
-  { href: '/dashboard/ideas',    labelKey: 'nav.contentIdeas',  icon: Lightbulb,       allowedRoles: ['owner', 'team_leader', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern'] },
-  { href: '/dashboard/calendar', labelKey: 'nav.calendar',      icon: Calendar,        allowedRoles: ['owner', 'team_leader', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard',          labelKey: 'nav.dashboard',     icon: LayoutDashboard, allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/tasks',    labelKey: 'nav.allTasks',      icon: CheckSquare,     allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/content',  labelKey: 'nav.content',       icon: Film,            allowedRoles: ['owner', 'team_leader', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/reminders', labelKey: 'nav.reminders',     icon: StickyNote,      allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/chat',     labelKey: 'nav.globalChat',    icon: MessageSquare,   allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/client-chat', labelKey: 'nav.clientChat',  icon: MessageSquare,   allowedRoles: ['owner', 'team_leader', 'account_manager', 'hr'] },
+  { href: '/dashboard/team',     labelKey: 'nav.team',          icon: Users,           allowedRoles: ['owner', 'team_leader', 'hr'] },
+  { href: '/dashboard/finance',  labelKey: 'nav.finance',       icon: Briefcase,       allowedRoles: ['owner', 'team_leader', 'hr'] },
+  { href: '/dashboard/my-salary', labelKey: 'nav.mySalary',     icon: Wallet,          allowedRoles: ['team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/clients',  labelKey: 'nav.clients',       icon: Users,           allowedRoles: ['owner', 'team_leader', 'hr'] },
+  { href: '/dashboard/closed-clients', labelKey: 'nav.closedClients', icon: Archive, allowedRoles: ['owner', 'team_leader', 'account_manager', 'moderation', 'content_creator', 'hr'] },
+  { href: '/dashboard/reports',  labelKey: 'nav.reportsHub',    icon: FileBarChart,    allowedRoles: ['owner', 'team_leader', 'account_manager', 'hr'] },
+  { href: '/dashboard/ideas',    labelKey: 'nav.contentIdeas',  icon: Lightbulb,       allowedRoles: ['owner', 'team_leader', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/calendar', labelKey: 'nav.calendar',      icon: Calendar,        allowedRoles: ['owner', 'team_leader', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
   { href: '/dashboard/sales-calendar', labelKey: 'nav.salesCalendar', icon: CalendarDays, allowedRoles: ['sales'] },
   { href: '/dashboard/campaigns', labelKey: 'nav.campaigns',   icon: Megaphone,       allowedRoles: ['owner'] },
-  { href: '/dashboard/notes',    labelKey: 'nav.notes',         icon: FileText,        allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
-  { href: '/dashboard/roles',   labelKey: 'nav.roles',         icon: Shield,          allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
-  { href: '/dashboard/profile',  labelKey: 'nav.myProfile',     icon: UserCircle,      allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
-  { href: '/dashboard/settings', labelKey: 'nav.settings',      icon: Settings,        allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'reel_maker', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/notes',    labelKey: 'nav.notes',         icon: FileText,        allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/roles',   labelKey: 'nav.roles',         icon: Shield,          allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/profile',  labelKey: 'nav.myProfile',     icon: UserCircle,      allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
+  { href: '/dashboard/settings', labelKey: 'nav.settings',      icon: Settings,        allowedRoles: ['owner', 'team_leader', 'sales', 'member', 'developer', 'graphic_designer', 'video_editor', 'videographer', 'reel_maker', 'model', 'lighting_designer', 'moderation', 'account_manager', 'content_creator', 'content_creator_intern', 'hr'] },
 ];
 
 export default function Sidebar({ isOpen, onClose, onUnreadChange }: { isOpen?: boolean; onClose?: () => void; onUnreadChange?: (hasUnread: boolean) => void }) {
@@ -170,7 +170,7 @@ export default function Sidebar({ isOpen, onClose, onUnreadChange }: { isOpen?: 
         }
 
         // 4. Check Client Chat
-        if (user.role === 'owner' || user.role === 'team_leader' || user.role === 'account_manager') {
+        if (user.role === 'owner' || user.role === 'team_leader' || user.role === 'account_manager' || user.role === 'hr') {
           const clientChatRes = await clientChatApi.listRooms().catch(() => ({ rooms: [] }));
           const rooms = clientChatRes.rooms || [];
           const lastReadClientChat = localStorage.getItem('last_read_client_chat_time');
@@ -295,7 +295,7 @@ export default function Sidebar({ isOpen, onClose, onUnreadChange }: { isOpen?: 
             >
               <Icon className={cn('size-4 shrink-0', isActive ? 'text-[#E11827]' : '')} />
               <span className="flex-1">
-                {item.href === '/dashboard/finance' && user?.role === 'team_leader' ? t('finance.salariesTab') : t(item.labelKey)}
+                {item.href === '/dashboard/finance' && (user?.role === 'team_leader' || user?.role === 'hr') ? t('finance.salariesTab') : t(item.labelKey)}
               </span>
               {item.href === '/dashboard/chat' && hasNewMessage && (
                 <span className="absolute right-3 rtl:right-auto rtl:left-3 top-1/2 -translate-y-1/2 size-2.5 rounded-full bg-[#E11827] animate-pulse shadow-[0_0_8px_rgba(225,24,39,0.8)]" />

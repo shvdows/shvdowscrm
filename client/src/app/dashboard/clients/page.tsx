@@ -91,9 +91,9 @@ export default function ClientsDashboardPage() {
   const router = useRouter();
   const { t, locale } = useLanguage();
 
-  // Navigation Guard: owner, team_leader, sales, account_manager
+  // Navigation Guard: owner, team_leader, sales, account_manager, hr
   useEffect(() => {
-    if (user && !['owner', 'team_leader', 'sales', 'account_manager'].includes(user.role)) {
+    if (user && !['owner', 'team_leader', 'sales', 'account_manager', 'hr'].includes(user.role)) {
       router.replace('/dashboard');
     }
   }, [user, router]);
@@ -207,7 +207,7 @@ export default function ClientsDashboardPage() {
   };
 
   useEffect(() => {
-    if (user && ['owner', 'team_leader', 'sales', 'account_manager'].includes(user.role)) {
+    if (user && ['owner', 'team_leader', 'sales', 'account_manager', 'hr'].includes(user.role)) {
       loadData();
     }
   }, [user]);
@@ -717,12 +717,12 @@ export default function ClientsDashboardPage() {
   };
 
   useEffect(() => {
-    if (user && ['owner', 'team_leader', 'account_manager'].includes(user.role)) {
+    if (user && ['owner', 'team_leader', 'account_manager', 'hr'].includes(user.role)) {
       loadData();
     }
   }, [user]);
 
-  if (!user || !['owner', 'team_leader', 'account_manager'].includes(user.role)) {
+  if (!user || !['owner', 'team_leader', 'account_manager', 'hr'].includes(user.role)) {
     return null;
   }
 

@@ -67,7 +67,7 @@ export default function CreateTaskPage() {
   const [linkInputs, setLinkInputs] = useState<string[]>(['']);
 
   useEffect(() => {
-    if (user?.role !== 'owner' && user?.role !== 'team_leader' && user?.role !== 'moderation' && user?.role !== 'account_manager' && user?.role !== 'content_creator') {
+    if (user?.role !== 'owner' && user?.role !== 'team_leader' && user?.role !== 'moderation' && user?.role !== 'account_manager' && user?.role !== 'content_creator' && user?.role !== 'hr') {
       router.replace('/dashboard');
       return;
     }

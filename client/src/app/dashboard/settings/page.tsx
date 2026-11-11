@@ -348,12 +348,7 @@ export default function SettingsPage() {
                             variant="outline"
                             className="text-[10px] py-0.5 px-1.5"
                           >
-                            {u.role === 'owner' ? t('role.owner') :
-                             u.role === 'team_leader' ? t('role.team_leader') :
-                             u.role === 'sales' ? t('role.sales') :
-                             u.role === 'moderation' ? t('role.moderation') :
-                             u.role === 'account_manager' ? t('role.account_manager') :
-                             t('role.member')}
+                            {t(`role.${u.role}`) || u.role}
                           </Badge>
                         </td>
                         <td className="py-3.5 px-4 text-start text-muted-foreground font-medium truncate max-w-[200px]">
@@ -712,7 +707,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Tabs switcher */}
-      {(user?.role === 'owner' || user?.role === 'team_leader') && (
+      {(user?.role === 'owner' || user?.role === 'team_leader' || user?.role === 'hr') && (
         <div className="flex border-b border-border mb-4 gap-6">
           <button
             onClick={() => setActiveTab('profile')}
@@ -938,12 +933,7 @@ export default function SettingsPage() {
             <div className="flex flex-col gap-1">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('team.role')}</span>
               <span className="text-sm font-semibold text-foreground bg-muted/40 p-2 border rounded-md">
-                {selectedUser.role === 'owner' ? t('role.owner') :
-                 selectedUser.role === 'team_leader' ? t('role.team_leader') :
-                 selectedUser.role === 'sales' ? t('role.sales') :
-                 selectedUser.role === 'moderation' ? t('role.moderation') :
-                 selectedUser.role === 'account_manager' ? t('role.account_manager') :
-                 t('role.member')}
+                {t(`role.${selectedUser.role}`) || selectedUser.role}
               </span>
             </div>
 

@@ -108,7 +108,7 @@ export default function ClosedClientContentHub({ clientId, client }: ClosedClien
   const dialogContentRef = useRef<HTMLDivElement>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const canManage = user && ['owner', 'team_leader', 'account_manager', 'content_creator'].includes(user.role);
+  const canManage = user && ['owner', 'team_leader', 'account_manager', 'content_creator', 'hr'].includes(user.role);
 
   // State
   const [contents, setContents] = useState<ContentItem[]>([]);

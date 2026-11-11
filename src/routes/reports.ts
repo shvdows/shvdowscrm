@@ -14,7 +14,7 @@ const upload = multer({
 
 // Role access control: Admins (owner, team_leader) and Account Managers only
 const reportsManagerOnly = (req: AuthRequest, res: Response, next: Function) => {
-  if (!req.user || !['owner', 'team_leader', 'account_manager'].includes(req.user.role)) {
+  if (!req.user || !['owner', 'team_leader', 'account_manager', 'hr'].includes(req.user.role)) {
     res.status(403).json({ error: 'Access denied. Authorized for Admins and Account Managers only.' });
     return;
   }
@@ -215,7 +215,7 @@ router.put('/daily/:id', authMiddleware, reportsManagerOnly, async (req: AuthReq
       return;
     }
 
-    const isOwnerOrLeader = ['owner', 'team_leader'].includes(req.user!.role);
+    const isOwnerOrLeader = ['owner', 'team_leader', 'hr'].includes(req.user!.role);
     if (!isOwnerOrLeader && existingLog.author_id !== req.user!.id) {
       res.status(403).json({ error: 'You can only edit your own logs' });
       return;
@@ -270,7 +270,7 @@ router.delete('/daily/:id', authMiddleware, reportsManagerOnly, async (req: Auth
       return;
     }
 
-    const isOwnerOrLeader = ['owner', 'team_leader'].includes(req.user!.role);
+    const isOwnerOrLeader = ['owner', 'team_leader', 'hr'].includes(req.user!.role);
     if (!isOwnerOrLeader && existingLog.author_id !== req.user!.id) {
       res.status(403).json({ error: 'You can only delete your own logs' });
       return;

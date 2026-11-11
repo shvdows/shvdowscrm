@@ -10,7 +10,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response): Promise
 
   try {
     // Verify member has access to this task
-    if (!['owner', 'team_leader', 'moderation', 'account_manager'].includes(req.user!.role)) {
+    if (!['owner', 'team_leader', 'moderation', 'account_manager', 'hr'].includes(req.user!.role)) {
       const { data: assignee, error: assigneeError } = await supabaseAdmin
         .from('task_assignees')
         .select('id')
@@ -53,7 +53,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response): Promis
 
   try {
     // Verify member has access to this task
-    if (!['owner', 'team_leader', 'moderation', 'account_manager'].includes(req.user!.role)) {
+    if (!['owner', 'team_leader', 'moderation', 'account_manager', 'hr'].includes(req.user!.role)) {
       const { data: assignee, error: assigneeError } = await supabaseAdmin
         .from('task_assignees')
         .select('id')

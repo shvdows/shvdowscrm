@@ -71,7 +71,7 @@ export default function ClosedClientDetailPage() {
 
   // Navigation Guard
   useEffect(() => {
-    if (user && !['owner', 'team_leader', 'account_manager', 'moderation', 'content_creator'].includes(user.role)) {
+    if (user && !['owner', 'team_leader', 'account_manager', 'moderation', 'content_creator', 'hr'].includes(user.role)) {
       router.replace('/dashboard');
     }
   }, [user, router]);
@@ -101,7 +101,7 @@ export default function ClosedClientDetailPage() {
   }, [clientId]);
 
   useEffect(() => {
-    if (user && ['owner', 'team_leader', 'account_manager', 'moderation', 'content_creator'].includes(user.role)) {
+    if (user && ['owner', 'team_leader', 'account_manager', 'moderation', 'content_creator', 'hr'].includes(user.role)) {
       loadAll();
     }
   }, [user, loadAll]);
@@ -144,7 +144,7 @@ export default function ClosedClientDetailPage() {
     });
   }, [user]);
 
-  if (!user || !['owner', 'team_leader', 'account_manager', 'moderation', 'content_creator'].includes(user.role)) return null;
+  if (!user || !['owner', 'team_leader', 'account_manager', 'moderation', 'content_creator', 'hr'].includes(user.role)) return null;
 
   return (
     <div className="page-container fade-in">
